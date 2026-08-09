@@ -3,10 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "js-condom": "./src/cli/protect.js"
+  },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
+  },
+  "jsCondom": {
+    "qualifiedEngine": "javascript-obfuscator",
+    "qualifiedEngineVersion": "4.1.0",
+    "presetVersion": "1.0.0"
   },
   "scripts": {
+    "lint": "find src/core src/cli -name '*.js' -print0 | xargs -0 node --check",
     "test": "node --test test/**/*.test.js",
     "validate-manifest": "node src/protocol/validate-manifest.js"
   },
@@ -17,7 +26,7 @@
     "estraverse": "5.3.0",
     "javascript-obfuscator": "4.1.0",
     "ollama": "0.6.3",
-    "ses": "1.10.0",
+    "ses": "1.15.0",
     "webcrack": "2.16.0"
   }
 }

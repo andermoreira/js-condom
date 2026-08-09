@@ -1,7 +1,7 @@
-# Spec: `js-protect` core v1
+# Spec: `js-condom` core v1
 
 > **Status:** Draft — bloqueada pelo
-> [POC comparativo de polimorfismo](js-protect-polymorphism-poc.md) e pelo aceite do
+> [POC comparativo de polimorfismo](js-condom-polymorphism-poc.md) e pelo aceite do
 > [ADR 001](../adr/001-engine-propria-vs-orquestracao.md). Não autoriza Atomic Steps.
 
 ## Goal
@@ -69,7 +69,7 @@ subconjunto suportado.
 
 **Given** um arquivo JavaScript bundled compatível e uma configuração válida
 
-**When** o desenvolvedor executa `js-protect bundle.js --out-dir protected`
+**When** o desenvolvedor executa `js-condom bundle.js --out-dir protected`
 
 **Then** a ferramenta publica `protected/bundle.js` semanticamente equivalente e um relatório de
 build, sem acessar a rede.
@@ -163,7 +163,7 @@ sem output parcial.
 ### CLI
 
 ```text
-js-protect <input> --out-dir <path> [options]
+js-condom <input> --out-dir <path> [options]
 
 Arguments:
   input                         Arquivo .js ou diretório sem symlinks
@@ -192,7 +192,7 @@ Regras:
 - Diretórios são percorridos por paths reais; symlinks são rejeitados, não seguidos.
 - Arquivos que não terminam em `.js`, `.mjs` ou `.cjs` são ignorados e listados no relatório.
 - A CLI nunca baixa schema, engine, configuração ou atualização durante a execução.
-- O relatório é sempre escrito; por default usa `<out-dir>.js-protect-report.json`, fora do
+- O relatório é sempre escrito; por default usa `<out-dir>.js-condom-report.json`, fora do
   staging. `--report` apenas substitui esse path.
 
 ### API programática Node.js
@@ -258,7 +258,7 @@ Invariantes:
 
 ## Data model
 
-### Config file (`js-protect.config.json`)
+### Config file (`js-condom.config.json`)
 
 ```json
 {
@@ -337,7 +337,7 @@ export type ProtectionErrorCode =
 | `internal_error` | Bug não classificado | 1 | Não |
 
 CLI escreve diagnóstico seguro em stderr no formato
-`js-protect: <code>: <relative-file>:<line>:<column>: <message>`. Stack e detalhes internos só ficam
+`js-condom: <code>: <relative-file>:<line>:<column>: <message>`. Stack e detalhes internos só ficam
 disponíveis em ambiente de desenvolvimento, nunca no relatório padrão.
 
 Para diretório, qualquer falha mantém o destino ausente. O relatório de falha pode ser escrito no
@@ -470,7 +470,7 @@ target/formato. Não existe estado implícito.
 
 - [Benchmark corrigido](../benchmark-js-protection.md) — capacidades, evidência e lacunas do
   mercado, atualizado em 2026-08-09.
-- [Spec do POC](js-protect-polymorphism-poc.md) — protocolo que valida eficácia e arquitetura.
+- [Spec do POC](js-condom-polymorphism-poc.md) — protocolo que valida eficácia e arquitetura.
 - [ADR 001](../adr/001-engine-propria-vs-orquestracao.md) — decisão arquitetural ainda `Proposed`.
 - [Node.js release lifecycle](https://nodejs.org/en/about/previous-releases) — linhas mantidas,
   acesso em 2026-08-09.
@@ -484,8 +484,10 @@ target/formato. Não existe estado implícito.
 
 1. **Qual candidato vence o POC e qual `engineId` será aceito?** **Owner:** @andersonalves.
    **Deadline:** relatório do POC / aceite do ADR 001.
-2. **Qual threshold adversarial sustenta a claim pública?** Deve ser congelado antes da matriz
-   oficial. **Owner:** @andersonalves. **Deadline:** antes dos Atomic Steps do POC.
+2. **Qual threshold adversarial sustenta a claim pública?** O endpoint primário é a redução da taxa
+   de conclusão dentro do budget contra `oss-baseline`; o valor numérico deve ser calibrado no
+   piloto e congelado antes da matriz oficial. **Owner:** @andersonalves. **Deadline:** fim do
+   piloto do POC.
 3. **Quais budgets de build time, tamanho e runtime overhead são aceitáveis?** Derivar do corpus e
    hardware de release. **Owner:** @andersonalves. **Deadline:** antes do aceite desta spec.
 4. **Qual linha LTS mínima de Node será suportada no primeiro release?** Escolher entre linhas ainda
@@ -500,7 +502,7 @@ target/formato. Não existe estado implícito.
 
 | Fonte atual | Acceptance criteria | Implementation plan |
 |---|---|---|
-| Gate arquitetural concluído fora do core | AC1 | POC plan 8–9; precondition dos steps do core |
+| Gate arquitetural concluído fora do core | AC1 | POC plan 11–12; precondition dos steps do core |
 | Operação 100% offline | AC2, AC5 | 1, 2 |
 | CLI arquivo/diretório | AC3, AC4, AC12 | 4 |
 | API Node.js sem efeitos implícitos | AC5, AC6 | 1, 2 |

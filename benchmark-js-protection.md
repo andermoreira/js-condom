@@ -3,7 +3,7 @@
 > **Status:** Discovery ativo, corrigido em 2026-08-09
 >
 > **Objetivo:** registrar capacidades documentadas, evidência disponível e lacunas que o
-> [POC comparativo de polimorfismo](specs/js-protect-polymorphism-poc.md) deve resolver. Este
+> [POC comparativo de polimorfismo](specs/js-condom-polymorphism-poc.md) deve resolver. Este
 > documento não aprova arquitetura.
 
 ## 1. Método e níveis de evidência
@@ -176,7 +176,7 @@ x86/ARM sem teste do artefato e runtime alvo.
 `[CONFLICT: README oficial do Bytenode, seção require/compatibility, acesso em 2026-08-09]`
 
 Consequência: portabilidade entre arquiteturas permanece requisito de teste, não fato aceito para
-o contrato do `js-protect`.
+o contrato do `js-condom`.
 
 ### 4.4 Outras alternativas relevantes
 
@@ -238,7 +238,7 @@ performance, compatibilidade ou distribuição já foram comprovadas.
 
 ### Fase atual — evidência
 
-Executar a spec [`js-protect-polymorphism-poc.md`](specs/js-protect-polymorphism-poc.md):
+Executar a spec [`js-condom-polymorphism-poc.md`](specs/js-condom-polymorphism-poc.md):
 
 1. `javascript-obfuscator` free como baseline real, incluindo sua randomização nativa;
 2. fork/extensão mínima como hipótese de menor complexidade;

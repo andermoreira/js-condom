@@ -1,13 +1,13 @@
 # ADR 001 — Engine própria de ofuscação vs. orquestração de ferramentas existentes
 
-> **Status:** Proposed — decisão final bloqueada pelo [POC comparativo de polimorfismo](../specs/js-protect-polymorphism-poc.md)
+> **Status:** Proposed — decisão final bloqueada pelo [POC comparativo de polimorfismo](../specs/js-condom-polymorphism-poc.md)
 >
 > **Data:** 2026-08-09
 > **Owner:** @andersonalves
 
 ## Context
 
-A spec [`js-protect — Core Obfuscation Engine`](../specs/js-protect-core.md) propõe uma ferramenta
+A spec [`js-condom — Core Obfuscation Engine`](../specs/js-condom-core.md) propõe uma ferramenta
 open source e offline para dificultar engenharia reversa de JavaScript distribuído. O diferencial
 pretendido é reduzir o reuso de padrões de desofuscação entre builds por meio de diversidade
 estrutural controlada por seed.
@@ -19,7 +19,7 @@ O discovery inicial ([`benchmark-js-protection.md`](../benchmark-js-protection.m
 - as transforms AST tradicionais, isoladas, não são tratadas como proteção forte no produto;
 - VM bytecode, técnicas comercializadas como polimórficas e defesas anti-LLM aparecem como as
   classes de maior resistência no benchmark, mas o ganho causal do polimorfismo proposto pelo
-  `js-protect` ainda está `[UNVERIFIED]`;
+  `js-condom` ainda está `[UNVERIFIED]`;
 - o `javascript-obfuscator` free já possui PRNG configurável: `seed: 0` opera sem seed fixa, e a
   ferramenta oferece shuffle, rotate e escolhas probabilísticas
   `[VERIFIED: documentação oficial, acesso em 2026-08-09]`;
@@ -102,7 +102,7 @@ Usar Bytenode para o caso Node.js/Electron, sem acoplar essa decisão à engine 
 
 Adotar, enquanto este ADR estiver **Proposed**, uma decisão em duas fases:
 
-1. executar o [POC comparativo de polimorfismo](../specs/js-protect-polymorphism-poc.md), usando a
+1. executar o [POC comparativo de polimorfismo](../specs/js-condom-polymorphism-poc.md), usando a
    Alternativa A como baseline e comparando ao menos uma extensão/fork mínimo (B) e uma transform
    própria mínima (C ou D);
 2. selecionar, após o relatório do POC, a alternativa de menor complexidade que preserve 100% da

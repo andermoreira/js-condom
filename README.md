@@ -7,69 +7,69 @@ This tool is an **operational wrapper**. It standardizes obfuscation defaults, v
 JavaScript subsets, and produces auditable artifacts. It is **not** a security boundary and does
 **not** promise irreversibility, anti-LLM resistance, or measurable recovery cost.
 
-## Contexto e direção do projeto
+## Project context and direction
 
-Estamos construindo uma camada de proteção para o momento de build, executada localmente e sem
-rede, sobre uma engine open source já qualificada. O MVP concentra-se em um único arquivo
-JavaScript empacotado e entrega uma API, uma CLI e um preset versionado com comportamento comum.
+We are building a build-time protection layer that runs locally and offline on top of a qualified
+open-source engine. The MVP focuses on a single bundled JavaScript file and provides an API, a CLI,
+and a versioned preset with consistent behavior.
 
-### Por que estamos fazendo isso
+### Why we are building it
 
-O objetivo é tornar a proteção previsível e auditável para quem gera artefatos JavaScript:
+The goal is to make protection predictable and auditable for teams producing JavaScript artifacts:
 
-- reduzir decisões divergentes entre projetos por meio de defaults controlados;
-- preservar a semântica do subconjunto de JavaScript que declaramos suportar;
-- permitir builds reproduzíveis quando uma seed é fixada;
-- registrar versões, configuração, seed e hashes para diagnóstico e auditoria;
-- falhar de forma explícita diante de entradas incompatíveis, sem publicar artefatos parciais.
+- reduce divergent project decisions through controlled defaults;
+- preserve the semantics of the supported JavaScript subset;
+- enable reproducible builds when a seed is fixed;
+- record versions, configuration, seed, and hashes for diagnostics and audits;
+- fail explicitly on incompatible inputs without publishing partial artifacts.
 
-Uma investigação anterior mostrou que não há evidência suficiente para prometer resistência contra
-desofuscação automatizada ou LLMs. Por isso, o resultado esperado desta fase é confiabilidade
-operacional — não irreversibilidade. Qualquer alegação futura sobre custo de recuperação deverá ser
-medida em um experimento adversarial separado, com protocolo e evidência próprios.
+Previous investigation found insufficient evidence to promise resistance against automated
+deobfuscation or LLMs. The expected outcome of this phase is therefore operational reliability, not
+irreversibility. Any future claim about recovery cost must be measured in a separate adversarial
+experiment with its own protocol and evidence.
 
-### Resultado esperado do MVP
+### Expected MVP outcome
 
-Ao final desta fase, o projeto deverá oferecer:
+At the end of this phase, the project should provide:
 
-1. uma função `protect(sourceCode, options)` com contrato estável;
-2. o comando `js-condom protect input.js --output protected.js` para arquivos `.js`, `.mjs` e `.cjs`;
-3. output semanticamente equivalente nas fixtures oficialmente suportadas;
-4. bytes e hashes reproduzíveis com seed fixa;
-5. metadata suficiente para repetir e investigar um build;
-6. erros estruturados, política fail-closed e execução sem rede ou telemetria;
-7. CI e documentação que permitam requalificar a engine antes de qualquer upgrade.
+1. a stable `protect(sourceCode, options)` function;
+2. the `js-condom protect input.js --output protected.js` command for `.js`, `.mjs`, and `.cjs` files;
+3. semantically equivalent output for officially supported fixtures;
+4. reproducible bytes and hashes with a fixed seed;
+5. enough metadata to reproduce and investigate a build;
+6. structured errors, fail-closed behavior, and offline execution without telemetry;
+7. CI and documentation for requalifying the engine before any upgrade.
 
-Diretórios, source maps, plugins de bundler, TypeScript/JSX e novas engines permanecem fora do MVP
-e exigem decisões e especificações próprias.
+Directories, source maps, bundler plugins, TypeScript/JSX, and new engines remain outside the MVP
+and require their own decisions and specifications.
 
-### Fluxo de proteção
+### Protection flow
 
 ```mermaid
 flowchart LR
-    A[JavaScript bundled] --> B[Validar entrada e extensão]
-    B --> C[Detectar hazards]
-    C -->|válido| D[Aplicar preset v1]
+    A[JavaScript bundled] --> B[Validate input and extension]
+    B --> C[Detect hazards]
+    C -->|valid| D[Apply v1 preset]
     D --> E[javascript-obfuscator]
-    E --> F[Validar sintaxe e smoke test]
-    F -->|válido| G[Calcular metadata e hashes]
-    G --> H[Publicar output atomicamente]
-    C -->|hazard detectável| X[Erro fail-closed]
-    F -->|falha| X
+    E --> F[Validate syntax and smoke test]
+    F -->|valid| G[Compute metadata and hashes]
+    G --> H[Publish output atomically]
+    C -->|detectable hazard| X[Fail-closed error]
+    F -->|failure| X
 ```
 
-## Uso recomendado
+## Recommended usage
 
-O fluxo típico é:
+The typical workflow is:
 
-1. gerar e empacotar o JavaScript da aplicação;
-2. executar o `js-condom` no artefato final;
-3. armazenar o código protegido e o relatório junto do registro do build;
-4. guardar a `seedUsed`, o `presetVersion` e os hashes para reprodução ou diagnóstico.
+1. generate and bundle the application JavaScript;
+2. run `js-condom` on the final artifact;
+3. store the protected code and report with the build record;
+4. retain `seedUsed`, `presetVersion`, and hashes for reproduction or diagnostics.
 
 ### CLI
 
-Depois de instalar as dependências, proteja um único arquivo:
+After installing dependencies, protect a single file:
 
 ```bash
 npm ci
@@ -79,12 +79,12 @@ node src/cli/protect.js protect dist/app.js \
   --seed release-2026-08-09
 ```
 
-Para builds reproduzíveis, mantenha a mesma seed, versão do pacote, versão da engine e preset.
-Para builds independentes, omita `--seed`; a seed efetiva será registrada no relatório.
+For reproducible builds, keep the same seed, package version, engine version, and preset. For
+independent builds, omit `--seed`; the effective seed is recorded in the report.
 
 ### API
 
-Use a API quando o pipeline de build já for controlado por Node.js:
+Use the API when the build pipeline is already controlled by Node.js:
 
 ```js
 import { readFile, writeFile } from 'node:fs/promises';
@@ -97,28 +97,28 @@ await writeFile('dist/app.protected.js', result.code, 'utf8');
 await writeFile('dist/app.protected.json', `${JSON.stringify(result.metadata, null, 2)}\n`);
 ```
 
-O `js-condom` rejeita opções desconhecidas e entradas fora do subconjunto suportado. Em caso de
-erro, a CLI retorna código diferente de zero e escreve um objeto JSON no stderr. Nenhum artefato
-deve ser tratado como publicado quando a operação falhar.
+`js-condom` rejects unknown options and inputs outside the supported subset. On error, the CLI
+returns a non-zero exit code and writes a JSON object to stderr. No artifact should be treated as
+published when the operation fails.
 
-## O que o wrapper acrescenta
+## What the wrapper adds
 
-Quando usado com a mesma versão, preset e seed, o `js-condom` utiliza a mesma engine de
-transformação do `javascript-obfuscator`. O ganho está no processo ao redor dela:
+When used with the same version, preset, and seed, `js-condom` uses the same transformation engine
+as `javascript-obfuscator`. The value comes from the surrounding process:
 
-- preset controlado, em vez de flags divergentes por projeto;
-- seed, versões, configuração e hashes registrados;
-- validação de hazards e do output antes da publicação;
-- API e CLI com o mesmo contrato;
-- escrita atômica, prevenção de conflitos e erros estruturados;
-- gates de CI, auditoria e execução sem rede.
+- a controlled preset instead of divergent project flags;
+- recorded seed, versions, configuration, and hashes;
+- hazard and output validation before publication;
+- one contract shared by the API and CLI;
+- atomic writes, conflict prevention, and structured errors;
+- CI gates, auditing, and offline execution.
 
-Isso melhora previsibilidade, reprodução e diagnóstico. Não constitui uma camada adicional de
-criptografia nem uma prova de resistência contra desofuscação, análise manual ou LLMs.
+This improves predictability, reproduction, and diagnostics. It is not an additional encryption
+layer or proof of resistance against deobfuscation, manual analysis, or LLMs.
 
-## Exemplo de output e desofuscação
+## Output and deobfuscation example
 
-Considere este código de entrada:
+Consider this input code:
 
 ```js
 export function greet(name) {
@@ -126,8 +126,8 @@ export function greet(name) {
 }
 ```
 
-Com o preset v1 e uma seed fixa, o output contém nomes hexadecimais, uma tabela de strings e um
-decodificador gerado pela engine. Um trecho representativo do output atual é:
+With the v1 preset and a fixed seed, the output contains hexadecimal names, a string table, and an
+engine-generated decoder. A representative excerpt of the current output is:
 
 ```js
 function _0x5e01(_0x2a5f9d, _0x308dc7) {
@@ -146,16 +146,16 @@ export function greet(_0x49708f) {
 }
 ```
 
-Esse formato aumenta o trabalho de leitura, mas não esconde a lógica de forma permanente. Uma
-desofuscação típica pode:
+This format makes casual reading harder, but it does not permanently hide the logic. A typical
+deobfuscation process can:
 
 1. analisar o AST e localizar a tabela de strings;
 2. executar ou avaliar estaticamente o decodificador;
 3. substituir chamadas como `_0x2969d5(0x1e6)` pelo texto correspondente;
-4. renomear identificadores e reformatar o código;
+4. rename identifiers and reformat the code;
 5. comparar o resultado com o comportamento do artefato original.
 
-Depois dessas etapas, a lógica essencial pode voltar a uma forma próxima de:
+After these steps, the essential logic can return to a form close to:
 
 ```js
 export function greet(name) {
@@ -165,18 +165,17 @@ export function greet(name) {
 
 ```mermaid
 flowchart LR
-    A[Artefato protegido] --> B[Parser / AST]
-    B --> C[Resolver tabela de strings]
-    C --> D[Inline de valores]
-    D --> E[Renomear e formatar]
-    E --> F[Lógica legível novamente]
+    A[Protected artifact] --> B[Parser / AST]
+    B --> C[Resolve string table]
+    C --> D[Inline values]
+    D --> E[Rename and format]
+    E --> F[Readable logic again]
 ```
 
-Portanto, o resultado esperado do `js-condom` é dificultar a leitura casual e padronizar o build,
-não impedir engenharia reversa. A facilidade de recuperação depende do programa, do preset, da
-engine e das ferramentas usadas pelo analista. Este repositório não publica uma taxa de sucesso,
-tempo de recuperação ou vantagem contra LLMs; qualquer número desse tipo precisa de um benchmark
-adversarial separado e reproduzível.
+Therefore, `js-condom` is expected to make casual reading harder and standardize the build, not
+prevent reverse engineering. Recoverability depends on the program, preset, engine, and tools used
+by the analyst. This repository does not publish a recovery rate, recovery time, or advantage
+against LLMs; any such number requires a separate, reproducible adversarial benchmark.
 
 ## Requirements
 

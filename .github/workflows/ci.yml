@@ -1,0 +1,41 @@
+name: core-release-gate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Verify Node.js 24
+        run: node -p "process.versions.node.startsWith('24.') || (console.error('Expected Node 24 LTS'), process.exit(1))"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Offline boundary
+        run: node --test test/core/offline-boundary.test.js
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high

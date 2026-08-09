@@ -43,6 +43,21 @@ Ao final desta fase, o projeto deverá oferecer:
 Diretórios, source maps, plugins de bundler, TypeScript/JSX e novas engines permanecem fora do MVP
 e exigem decisões e especificações próprias.
 
+### Fluxo de proteção
+
+```mermaid
+flowchart LR
+    A[JavaScript bundled] --> B[Validar entrada e extensão]
+    B --> C[Detectar hazards]
+    C -->|válido| D[Aplicar preset v1]
+    D --> E[javascript-obfuscator]
+    E --> F[Validar sintaxe e smoke test]
+    F -->|válido| G[Calcular metadata e hashes]
+    G --> H[Publicar output atomicamente]
+    C -->|hazard detectável| X[Erro fail-closed]
+    F -->|falha| X
+```
+
 ## Uso recomendado
 
 O fluxo típico é:
@@ -146,6 +161,15 @@ Depois dessas etapas, a lógica essencial pode voltar a uma forma próxima de:
 export function greet(name) {
   return 'Hello, ' + name + '!';
 }
+```
+
+```mermaid
+flowchart LR
+    A[Artefato protegido] --> B[Parser / AST]
+    B --> C[Resolver tabela de strings]
+    C --> D[Inline de valores]
+    D --> E[Renomear e formatar]
+    E --> F[Lógica legível novamente]
 ```
 
 Portanto, o resultado esperado do `js-condom` é dificultar a leitura casual e padronizar o build,

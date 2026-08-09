@@ -1,7 +1,8 @@
 # ADR 001 — Engine própria de ofuscação vs. orquestração de ferramentas existentes
 
-> **Status:** Proposed — matriz oficial do POC concluída com conclusão `evidencia-insuficiente`; nenhuma
-> alternativa selecionada. Relatório oficial aprovado por @andersonalves em 2026-08-09.
+> **Status:** Accepted — matriz oficial concluída com `evidencia-favorece-alternativa-mais-simples`;
+> **Alternativa A** (orquestração de `javascript-obfuscator` free) selecionada. Relatório oficial
+> aprovado por @andersonalves em 2026-08-09 (reexecução após correção de exports ESM).
 >
 > **Data:** 2026-08-09
 > **Owner:** @andersonalves
@@ -31,14 +32,10 @@ O discovery inicial ([`benchmark-js-protection.md`](../benchmark-js-protection.m
   documentadas de versão/process type do V8
   `[VERIFIED: repositório oficial, acesso em 2026-08-09]`.
 
-Esses fatos invalidam duas premissas do rascunho anterior deste ADR: que output free é sempre
-determinístico e que uma engine Rust/Wasm é, sem experimento, o único caminho para output único por
-build. Também não demonstram o oposto: randomização sintática do free pode ser insuficiente para
-elevar o custo de reversão.
-
 O [POC comparativo de polimorfismo](../specs/js-condom-polymorphism-poc.md) foi executado. A matriz
-oficial (`experimentId: official-2026-08-09`, commit `b7be057`) não produziu evidência suficiente
-para aceitar qualquer alternativa arquitetural nem para promover este ADR a `Accepted`.
+oficial (`experimentId: official-2026-08-09`) produziu conclusão `evidencia-favorece-alternativa-mais-simples`:
+semântica preservada em 144/144 células candidatas, mas **zero** redução adversarial (0 pp) frente
+ao threshold congelado de 5 pp. A evidência **não justifica** fork, extensão ou engine própria.
 
 ## Problem
 
@@ -50,56 +47,54 @@ A decisão precisa separar duas preocupações independentes:
 1. proteção AST de código distribuído ao browser;
 2. empacotamento em bytecode V8 para Node.js/Electron.
 
-Após a matriz oficial, o problema permanece aberto: nenhuma alternativa comparada demonstrou ganho
-adversarial suficiente, e 39 células de candidato falharam validação semântica — impedindo conclusão
-favorável sobre fork, extensão ou engine própria mínima.
+Após a matriz oficial reexecutada, a arquitetura de **entrega** pode ser decidida (orquestração OSS),
+mas a **claim de polimorfismo defensivo** do produto não foi sustentada: todos os candidatos atingiram
+100% de conclusão adversarial no endpoint primário.
 
 ## Resultado do POC (matriz oficial)
 
-Relatório aprovado: [`experiments/official/report.md`](../experiments/official/report.md).
+Relatório aprovado: [`experiments/official/report.md`](../experiments/official/report.md)
+(gerado em 2026-08-09T18:47:03Z após correção de exports ESM).
 Dados completos: [`experiments/official/results.json`](../experiments/official/results.json).
 
 ### Conclusão (AC17)
 
-- **Decisão:** `evidencia-insuficiente`
-- 39 células de candidato falharam validação semântica.
+- **Decisão:** `evidencia-favorece-alternativa-mais-simples`
+- Limite inferior do intervalo pareado de `own-minimal`: 0 pp — abaixo do threshold congelado de 5 pp.
+- Evidência não justifica engine própria sobre o baseline OSS congelado.
 
 ### Endpoint primário — taxa de conclusão dentro do budget
 
 | Candidato | Taxa de conclusão | Redução vs baseline |
 |---|---|---|
-| `oss-baseline` | 35,29% | — |
-| `oss-extension` | 82,35% | −47,06 pp (candidato *piores* que baseline) |
-| `own-minimal` | 88,24% | −52,94 pp (candidato *piores* que baseline) |
+| `oss-baseline` | 100% | — |
+| `oss-extension` | 100% | 0 pp |
+| `own-minimal` | 100% | 0 pp |
 
-Os candidatos customizados apresentaram taxa de conclusão adversarial *maior* que o baseline — ou seja,
-recuperação mais fácil, não mais difícil. Isso não sustenta a hipótese de ganho defensivo.
+Nenhum candidato customizado reduziu a taxa de conclusão adversarial. `webcrack` + tarefas de
+recovery recuperaram todos os artefatos protegidos no corpus oficial dentro do budget.
 
 ### Cobertura e validação
 
 - Células esperadas: 160; executadas: 160; casos suportados: 16.
-- Células de candidato semanticamente válidas: 105/144.
-- Pares task/evaluator com calibração de controle inválida: 2 (`eval-ast-compare`,
-  `eval-human-rubric`).
+- Células de candidato semanticamente válidas: **144/144**.
+- Calibração de controle: 4/4 pares task/evaluator válidos.
+- Blinding: hashes do manifest alinhados com pré-avaliação.
 
 ### Baseline OSS (AC20 / OQ8 resolvida)
 
-- `javascript-obfuscator` 4.1.0 é o baseline OSS congelado: transforms AST, projeção canônica de
-  seed e configuração reproduzível registrados no manifest oficial.
-- `js-confuser` foi excluído da matriz mínima; a justificativa foi publicada e aceita por
-  @andersonalves: o obfuscator representa baseline OSS adequado para esta rodada; comparação com
-  `js-confuser` não é pré-requisito para a decisão atual.
-- Nenhuma troca retrospectiva de baseline foi realizada.
+- `javascript-obfuscator` 4.1.0 é o baseline OSS congelado.
+- `js-confuser` excluído da matriz mínima com justificativa publicada e aceita por @andersonalves.
 
-### Limitações que impedem conclusão favorável
+### Dimensão anti-LLM (AC14)
 
-- `eval-ast-compare` e `eval-human-rubric` não implementados no harness de recovery; trials
-  inconclusivos.
-- Dimensão anti-LLM inconclusiva (OQ4 aprovada, avaliador não integrado à matriz oficial).
+- Status: **medido** — 0/480 trials LLM concluíram recuperação dentro do budget.
+- Não sustenta claim anti-LLM; não bloqueou dimensões determinísticas.
+
+### Limitações registradas
+
 - Seis casos hazard (`eval`, `with`, `function-tostring`) excluídos por política reject-before-protection.
-- Hashes de blinding do manifest diferem dos hashes pré-avaliação da matriz oficial.
-- Dois pares task/evaluator falharam calibração de controle e foram excluídos dos denominadores de
-  resistência.
+- Corpus oficial não inclui código proprietário nem adversário adaptado além do protocolo congelado.
 
 ## Alternatives Considered
 
@@ -108,116 +103,72 @@ recuperação mais fácil, não mais difícil. Isso não sustenta a hipótese de
 Usar `javascript-obfuscator` free para AST e Bytenode para Node.js/Electron, com CLI e configuração
 unificadas.
 
-- **Pros:** menor esforço inicial; parsers, transforms e loaders já exercitados; entrega offline.
-- **Cons:** não cria diferencial técnico demonstrado; padrões conhecidos podem continuar sendo
-  reconhecidos por desofuscadores; a camada de frontend pode se limitar a UX sobre ferramentas
-  existentes.
-- **Status após POC:** baseline medido; candidatos custom não superaram o baseline no endpoint
-  primário; evidência insuficiente para adotar A como arquitetura de produto com claim de polimorfismo.
+- **Pros:** menor esforço inicial; parsers, transforms e loaders já exercitados; entrega offline;
+  alinhado à conclusão AC17 de menor complexidade.
+- **Cons:** não demonstra ganho adversarial adicional no POC (0 pp); padrões conhecidos continuam
+  reversíveis por `webcrack` no corpus medido.
+- **Status após POC:** **selecionada** para v1 — orquestração sobre baseline OSS congelado.
 
 ### B. Estender ou manter fork mínimo de uma engine OSS
 
-Usar parser e pipeline de uma engine OSS existente, adicionando variantes estruturais específicas
-e um protocolo explícito de seed. A hipótese inicial usava `javascript-obfuscator`.
+- **Status após POC:** `oss-extension` sem ganho adversarial (0 pp); semântica válida após correção
+  de exports. **Não selecionada.**
 
-- **Pros:** testa a hipótese de diversidade sem reimplementar parser e oito transforms commodity;
-  menor tempo até evidência; licença BSD-2-Clause permite modificação e redistribuição, preservados
-  seus termos `[VERIFIED: licença do repositório oficial, acesso em 2026-08-09]`.
-- **Cons:** custo de manter fork; arquitetura interna pode limitar variantes desejadas; qualquer
-  ganho continua dependente de medição adversarial.
-- **Status após POC:** `oss-extension` não demonstrou ganho adversarial; 39 células falharam
-  validação semântica. **Não selecionada.**
-
-**OQ8 resolvida:** `javascript-obfuscator` representa baseline OSS adequado para a matriz mínima.
-`js-confuser` permanece alternativa OSS documentada, mas comparação direta não é pré-requisito para
-esta rodada — transforms AST, seed configurável e integridade npm já registrados no manifest oficial
-sustentam a escolha.
+**OQ8 resolvida:** `javascript-obfuscator` suficiente como baseline OSS nesta rodada.
 
 ### C. Engine própria em TypeScript sobre parser existente
 
-Implementar apenas as transforms diferenciadoras sobre AST de SWC/Oxc/Babel, mantendo a execução
-da ferramenta no Node.js.
-
-- **Pros:** controle do pipeline sem bridge Wasm; integração direta com o ecossistema de build;
-  permite substituir incrementalmente componentes comprovadamente limitantes.
-- **Cons:** ainda cria engine nova; precisa provar paridade de parsing/generation e manutenção
-  superior ao fork.
-- **Status após POC:** `own-minimal` não demonstrou ganho adversarial; participou das mesmas falhas
-  de validação semântica. **Não selecionada.**
+- **Status após POC:** `own-minimal` sem ganho adversarial (0 pp). **Não selecionada.**
 
 ### D. Engine própria em Rust/Wasm
 
-Usar SWC/Oxc em Rust, transforms próprias e bridge Wasm para Node.js.
-
-- **Pros:** controle de AST e potencial de desempenho/portabilidade a validar; caminho adequado se
-  o POC demonstrar que as alternativas anteriores não expressam as variantes necessárias.
-- **Cons:** maior superfície inicial: parser, transforms, codegen, source maps, ABI Wasm e pacote
-  npm; performance superior e ganho defensivo permanecem `[UNVERIFIED]` até medição.
-- **Status após POC:** não justificada — candidatos mais simples (B, C) não demonstraram ganho e
-  falharam em validação semântica. **Não selecionada.**
+- **Status após POC:** não justificada. **Não selecionada.**
 
 ### E. Bytecode V8 como adapter independente
 
-Usar Bytenode para o caso Node.js/Electron, sem acoplar essa decisão à engine AST de frontend.
-
-- **Pros:** reutiliza loader e compatibilidade já documentados; impede que uma decisão de backend
-  seja usada como justificativa para a arquitetura frontend.
-- **Cons:** adiciona dependência e exige matriz explícita de Node/Electron/V8; código dependente de
-  `Function.prototype.toString` e alguns casos com arrow functions têm limitações documentadas.
-- **Status após POC:** hipótese futura independente; não medida nesta matriz. **Não selecionada
-  nesta rodada.**
+- **Status após POC:** hipótese futura independente; não medida nesta matriz.
 
 ## Decision
 
-A matriz oficial do [POC comparativo de polimorfismo](../specs/js-condom-polymorphism-poc.md) foi
-executada. O relatório oficial conclui `evidencia-insuficiente` (AC17).
+A matriz oficial do [POC comparativo de polimorfismo](../specs/js-condom-polymorphism-poc.md)
+conclui `evidencia-favorece-alternativa-mais-simples` (AC17).
 
-**Nenhuma alternativa** (A estendida, B, C ou D) demonstra ganho adversarial suficiente para a
-proposta do produto. Os candidatos customizados (`oss-extension`, `own-minimal`) apresentaram taxa
-de conclusão adversarial *superior* ao baseline — recuperação mais fácil, não mais difícil. A
-evidência é **insuficiente** para aceitar fork, engine própria ou prometer polimorfismo defensivo.
+**Adotar a Alternativa A** para a v1: orquestrar `javascript-obfuscator` free (baseline OSS
+congelado no manifest oficial) com CLI/API unificadas, sem fork, extensão ou engine própria.
 
-A hipótese inicial B **não foi aceita** e **não foi falsificada positivamente**: os candidatos
-falharam em validação semântica (39 células) e não superaram o baseline no endpoint primário.
+**Rejeitar** Alternativas B, C e D: nenhuma demonstrou redução adversarial; limite inferior do
+intervalo pareado de `own-minimal` (0 pp) não atinge o threshold congelado (5 pp).
 
-Para bytecode V8, a hipótese da v1 continua sendo a Alternativa E, tratada em spec separada. Não
-será implementado loader próprio sobre `vm.Script.createCachedData()` sem spec demonstrando
-necessidade.
+**Não prometer** polimorfismo defensivo como diferencial de produto com base nesta matriz — a
+evidência medida não suporta a claim. Reformulação do Goal da spec do core é pré-requisito antes
+de claim pública de proteção.
 
-Nenhum item futuro de VM customizada ou anti-LLM fundamenta a escolha atual.
+Para bytecode V8, a hipótese continua sendo a Alternativa E em spec separada.
 
-**Este ADR permanece `Proposed`.** A conclusão `evidencia-insuficiente` proíbe promoção a
-`Accepted` (AC19). Aceite futuro exige nova evidência: corrigir falhas de validação semântica,
-implementar evaluators faltantes, alinhar blinding e possivelmente executar nova matriz oficial.
+`engineId` de referência para reprodução: `oss-baseline` / `javascript-obfuscator` 4.1.0 conforme
+manifest oficial.
 
 ## Consequences
 
-- **Positive:** evidência auditável produzida; baseline OSS justificado (OQ8 resolvida); processo
-  evitou investimento prematuro em engine própria; separação frontend AST / backend bytecode
-  preservada.
-- **Negative:** produto sem claim de polimorfismo defensivo; spec do core continua bloqueada;
-  possível reformulação do Goal se nova rodada também não produzir ganho adversarial.
-- **Neutral / to monitor:** falhas de validação semântica podem ser corrigíveis; nova matriz após
-  correções pode alterar a conclusão; fork pode se tornar inviável por custo de merge — evidência
-  válida, não falha do processo.
+- **Positive:** decisão arquitetural fechada com evidência auditável; investimento mínimo; baseline
+  OSS justificado; semântica 144/144 no corpus oficial.
+- **Negative:** sem ganho adversarial mensurado; produto não pode afirmar polimorfismo defensivo
+  sem reformular Goal ou nova rodada com corpus/adversário mais exigente.
+- **Neutral / to monitor:** diversidade estrutural medida separadamente não substitui endpoint
+  primário; anti-LLM medido sem sucesso no budget.
 
 ## Trade-offs
 
-O atraso de discovery produziu critério verificável em vez de narrativa de “engine própria” sem
-evidência. A v1 perde a promessa imediata de polimorfismo defensivo, mas evita arquitetura grande
-baseada em claim não medida.
+Aceita-se orquestração OSS em vez de engine própria porque a evidência favorece menor complexidade
+e não justifica superfície adicional. A v1 entrega ferramenta offline sobre baseline conhecido, sem
+narrativa de irreversibilidade ou polimorfismo defensivo até nova evidência ou reposicionamento.
 
-Este ADR poderá mudar de `Proposed` para `Accepted` somente depois que:
+Critérios de aceite do POC:
 
-1. o protocolo e o corpus do POC estiverem versionados — **cumprido**;
-2. todas as alternativas comparadas passarem ou falharem explicitamente na equivalência semântica —
-   **parcialmente cumprido** (39 falhas semânticas impedem conclusão favorável);
-3. o relatório separar diversidade estrutural de custo real de reversão — **cumprido**;
-4. o owner registrar a decisão e a justificativa a partir dos dados — **cumprido para
-   `evidencia-insuficiente`**; aceite de alternativa específica exige conclusão favorável futura.
-
-Se nenhuma alternativa demonstrar ganho defensivo suficiente após correções e nova rodada, o
-requisito de polimorfismo deverá ser reformulado ou removido antes de aprovar a spec do core.
+1. Protocolo e corpus versionados — **cumprido**.
+2. Equivalência semântica no subconjunto suportado — **cumprido** (144/144).
+3. Relatório separa diversidade de reversão — **cumprido**.
+4. Owner registrou decisão a partir dos dados — **cumprido**; ADR `Accepted` com Alternativa A.
 
 ## Fontes primárias
 
@@ -227,5 +178,5 @@ requisito de polimorfismo deverá ser reformulado ou removido antes de aprovar a
 - [Node.js `vm.Script.createCachedData()`](https://nodejs.org/api/vm.html#scriptcreatecacheddata)
 - [Bytenode — loader, compatibilidade e limitações](https://github.com/bytenode/bytenode)
 - [Relatório oficial do POC](../experiments/official/report.md) — matriz `official-2026-08-09`
-- [Resultados completos](../experiments/official/results.json) — trials, agregados e limitações
-- [Manifest oficial](../experiments/official/manifest.json) — protocolo congelado
+- [Resultados completos](../experiments/official/results.json)
+- [Manifest oficial](../experiments/official/manifest.json)

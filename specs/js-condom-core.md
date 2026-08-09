@@ -1,7 +1,8 @@
 # Spec: `js-condom` core v1
 
-> **Status:** Draft — POC oficial concluído com conclusão `evidencia-insuficiente`; ADR 001
-> permanece `Proposed`. Não autoriza Atomic Steps.
+> **Status:** Draft — ADR 001 `Accepted` (Alternativa A: orquestração OSS). POC não sustenta claim
+> de polimorfismo defensivo (0 pp vs threshold 5 pp). Goal pendente de reformulação; Atomic Steps
+> do core **proibidos** até OQ2–4 e reposicionamento de produto.
 
 ## Goal
 
@@ -137,16 +138,16 @@ sem output parcial.
 5. Seed não é segredo e pode constar do relatório de build.
 6. O pipeline selecionado no ADR terá identificador e versão próprios para reprodução.
 7. Código fora da matriz suportada falha fechado; a v1 não oferece modo `unsafe`.
-8. O POC oficial concluiu com `evidencia-insuficiente`: não aprovou threshold nem `engineId`, e não
-   sustenta claim pública de polimorfismo defensivo. Goal e escopo devem ser revistos se nova rodada
-   também não produzir ganho adversarial.
+8. O POC oficial concluiu com `evidencia-favorece-alternativa-mais-simples`: semântica 144/144,
+   mas 0 pp de redução adversarial no endpoint primário (threshold congelado: 5 pp). Não sustenta
+   claim pública de polimorfismo defensivo; Goal deve ser reformulado antes do aceite desta spec.
 
 ## Risks
 
 | Risco | Impacto | Mitigação atual |
 |---|---|---|
 | Pipeline altera semântica | Crítico | 100% no corpus suportado, multi-seed, hazards detectados e falha fechada |
-| Ganho defensivo não supera baseline | Crítico | POC bloqueia ADR e spec; sem claim pública antes do threshold |
+| Ganho defensivo não supera baseline | Crítico | POC mediu 0 pp; reformular Goal antes de claim pública |
 | Parser/codegen não cobre sintaxe real | Alto | Matriz explícita, fixtures por feature e `unsupported_syntax` |
 | Build não determinístico impede reproduzir incidente | Alto | Seed efetiva, versões/hashes no metadata e teste byte-idêntico |
 | Source map expõe código original | Alto | Separado, default off, `sourcesContent` false e documentação de custódia |
@@ -421,7 +422,8 @@ target/formato. Não existe estado implícito.
 
 ## Rollout / Rollback
 
-- A v1 é publicada somente após POC conclusivo, ADR 001 `Accepted` e budgets preenchidos.
+- A v1 é publicada somente após reformulação do Goal, budgets preenchidos (OQ2–4) e ADR 001
+  `Accepted` — **ADR aceito**; Goal e budgets ainda pendentes.
 - SemVer governa API, CLI, config, errors e schema do report; bytes ofuscados não são API estável.
 - Seed fixa garante reprodução somente com versão exata de tool, engine, config e runtime suportado.
 - Mudança no pipeline incrementa `engineVersion`; não exige MAJOR se contratos públicos e semântica
@@ -432,9 +434,9 @@ target/formato. Não existe estado implícito.
 
 ## Acceptance criteria
 
-1. **Gate arquitetural:** POC executado; ADR 001 em `Accepted` com engine/pipeline escolhido por
-   dados conclusivos favoráveis, antes de qualquer Atomic Step do core. Estado atual: POC concluído
-   com `evidencia-insuficiente`; ADR 001 `Proposed`; `engineId` indefinido.
+1. **Gate arquitetural:** ADR 001 `Accepted` (Alternativa A: `oss-baseline` / `javascript-obfuscator`).
+   POC executado sem ganho adversarial no threshold — **AC14 não satisfeito**; Atomic Steps do core
+   bloqueados até reformulação do Goal e OQ2–4.
 2. **Offline:** testes executam CLI/API com rede bloqueada e confirmam zero tentativa de conexão.
 3. **CLI arquivo:** comando mínimo protege `.js`, `.mjs` ou `.cjs` suportado e publica código mais
    report semanticamente válido.
@@ -472,8 +474,8 @@ target/formato. Não existe estado implícito.
 - [Benchmark corrigido](../benchmark-js-protection.md) — capacidades, evidência e lacunas do
   mercado, atualizado em 2026-08-09.
 - [Spec do POC](js-condom-polymorphism-poc.md) — protocolo que valida eficácia e arquitetura.
-- [ADR 001](../adr/001-engine-propria-vs-orquestracao.md) — decisão arquitetural `Proposed`; POC
-  oficial com `evidencia-insuficiente`.
+- [ADR 001](../adr/001-engine-propria-vs-orquestracao.md) — `Accepted`; Alternativa A; POC com
+  `evidencia-favorece-alternativa-mais-simples`, 0 pp adversarial.
 - [Relatório oficial do POC](../experiments/official/report.md) — matriz `official-2026-08-09`.
 - [Resultados completos](../experiments/official/results.json) — trials e agregados auditáveis.
 - [Node.js release lifecycle](https://nodejs.org/en/about/previous-releases) — linhas mantidas,
@@ -486,10 +488,10 @@ target/formato. Não existe estado implícito.
 
 ## Open questions
 
-1. **Qual candidato vence o POC e qual `engineId` será aceito?** POC oficial sem vencedor;
-   conclusão `evidencia-insuficiente`; `engineId` indefinido. Próximo movimento: replanejamento
-   (correção semântica, evaluators faltantes, possível nova matriz) ou reformulação do Goal.
-   **Owner:** @andersonalves. **Status:** aberta após matriz oficial.
+1. **Qual candidato vence o POC e qual `engineId` será aceito?** **Resolvida parcialmente:**
+   ADR aceita Alternativa A — `engineId: oss-baseline` (`javascript-obfuscator` 4.1.0). Fork e
+   engine própria rejeitados. Claim de polimorfismo defensivo **não** sustentada (0 pp).
+   **Owner:** @andersonalves. **Status:** arquitetura fechada; Goal pendente.
 2. **Qual threshold adversarial sustenta a claim pública?** O endpoint primário é a redução da taxa
    de conclusão dentro do budget contra `oss-baseline`; o valor numérico deve ser calibrado no
    piloto e congelado antes da matriz oficial. **Owner:** @andersonalves. **Deadline:** fim do
@@ -531,7 +533,6 @@ target/formato. Não existe estado implícito.
 
 ---
 
-> **Handoff bloqueado:** POC oficial executado com `evidencia-insuficiente`; ADR 001 permanece
-> `Proposed`. Não criar Atomic Steps do core até o ADR 001 estar `Accepted` com conclusão favorável
-> e as Open questions 2–4 ter respostas registradas. Próximo trabalho: corrigir validação semântica
-> dos candidatos, implementar evaluators faltantes e reavaliar protocolo — não implementação do core.
+> **Handoff bloqueado:** ADR 001 `Accepted` (orquestração OSS). POC mediu 0 pp adversarial — Goal
+> e claim de proteção precisam ser reformulados. Não criar Atomic Steps do core até reformulação do
+> Goal, OQ2–4 resolvidas e AC14 satisfeito ou explicitamente descartado no reposicionamento.

@@ -1,7 +1,8 @@
 # Benchmark de proteção JS/TS — discovery corrigido
 
 > **Status:** POC oficial executado em 2026-08-09; benchmark atualizado com evidência medida. Não
-> aprova arquitetura — conclusão `evidencia-insuficiente`.
+> aprova arquitetura — conclusão `evidencia-favorece-alternativa-mais-simples`; ADR `Accepted`
+> (Alternativa A).
 >
 > **Objetivo:** registrar capacidades documentadas, evidência disponível e lacunas. A matriz oficial
 > do [POC comparativo de polimorfismo](specs/js-condom-polymorphism-poc.md) foi executada; este
@@ -97,21 +98,23 @@ Portanto, são incorretas as claims absolutas de que o free:
 
 ### 3.2 O que a matriz oficial mediu
 
-A matriz oficial (`official-2026-08-09`) comparou `oss-baseline`, `oss-extension` e `own-minimal`
-sob protocolo congelado. Conclusão AC17: `evidencia-insuficiente`.
+A matriz oficial (`official-2026-08-09`, reexecutada após correção de exports ESM) comparou
+`oss-baseline`, `oss-extension` e `own-minimal` sob protocolo congelado. Conclusão AC17:
+`evidencia-favorece-alternativa-mais-simples`.
 
-- Candidatos customizados **não superaram** o baseline no endpoint primário (taxa de conclusão
-  adversarial maior: baseline 35,29%; `oss-extension` 82,35%; `own-minimal` 88,24%).
-- 39 células de candidato falharam validação semântica; conclusão global insuficiente para produto.
-- Dimensão anti-LLM inconclusiva (avaliador não integrado à matriz oficial).
+- Semântica: **144/144** células candidatas válidas; calibração 4/4.
+- Endpoint primário: **100%** conclusão em baseline, `oss-extension` e `own-minimal` — **0 pp**
+  de redução vs threshold congelado de **5 pp**.
+- Evidência **não justifica** fork, extensão ou engine própria; favorece orquestração OSS (Alternativa A).
+- Anti-LLM: medido — 0/480 trials concluíram dentro do budget.
 
-Claims que permanecem `[UNVERIFIED]` ou não demonstradas:
+Claims **não** sustentadas pelo POC:
 
-- diversidade estrutural isolada sustenta polimorfismo defensivo como diferencial de produto;
-- output único derrota análise de um único artefato por LLM;
-- similaridade textual ou estrutural prediz tempo do atacante.
+- polimorfismo defensivo como diferencial de produto;
+- fork ou engine própria superam baseline adversarial no corpus oficial;
+- anti-LLM reduz recuperação no protocolo congelado.
 
-Fonte: [`experiments/official/report.md`](experiments/official/report.md).
+Fonte: [`experiments/official/report.md`](experiments/official/report.md) (2026-08-09T18:47:03Z).
 
 ### 3.3 Definição operacional para o projeto
 
@@ -204,10 +207,10 @@ Ele não é candidato de implementação da v1 open source; permanece referênci
 
 | Alternativa | Offline | Output variável documentado | Bytecode | Eficácia medida neste repo | Papel atual |
 |---|---:|---:|---:|---:|---|
-| `javascript-obfuscator` free | Sim | Sim, PRNG/seed e opções aleatórias | Não | Sim — matriz oficial; conclusão insuficiente para produto | Baseline obrigatório |
-| `js-confuser` | Sim | Opções/transforms documentadas; variabilidade a medir | Não | Não | Alternativa OSS; excluída do POC inicial com justificativa publicada (OQ8 resolvida) |
-| Fork/extensão OSS | Sim | Medido no POC | Não | Sim — sem ganho adversarial; 39 falhas semânticas | Não selecionada |
-| Engine própria mínima TS | Sim | Medido no POC | Não | Sim — sem ganho adversarial; mesmas limitações | Não selecionada |
+| `javascript-obfuscator` free | Sim | Sim, PRNG/seed e opções aleatórias | Não | Sim — 100% recuperação no corpus oficial; **selecionado** (ADR Alternativa A) | Baseline e engine v1 |
+| `js-confuser` | Sim | Opções/transforms documentadas; variabilidade a medir | Não | Não | Alternativa OSS; excluída com justificativa (OQ8 resolvida) |
+| Fork/extensão OSS | Sim | Medido no POC | Não | Sim — 0 pp adversarial; semântica válida | **Não selecionada** |
+| Engine própria mínima TS | Sim | Medido no POC | Não | Sim — 0 pp adversarial | **Não selecionada** |
 | Engine própria Rust/Wasm | Sim em tese | Não medido | Não por si só | Não | Consideração futura condicionada |
 | Bytenode | Sim | Não é objetivo primário | V8 cached data + loader | Não para resistência | Adapter futuro Node/Electron |
 | Obfuscator.io Pro | Não, segundo tabela oficial | Sim, VM/opcodes | VM customizada | Não | Fora da restrição offline |
@@ -247,25 +250,21 @@ A matriz oficial (`official-2026-08-09`) foi executada. Artefatos:
 - [`experiments/official/results.json`](experiments/official/results.json)
 - [`experiments/official/blinding-map.json`](experiments/official/blinding-map.json)
 
-Conclusão AC17: `evidencia-insuficiente`. Relatório aprovado por @andersonalves em 2026-08-09.
+Conclusão AC17: `evidencia-favorece-alternativa-mais-simples`. Relatório aprovado por @andersonalves
+em 2026-08-09 (reexecução final).
 
 ### Depois do POC — estado atual
 
-- Fork/extensão **não** atende threshold: candidatos piores que baseline no endpoint primário;
-  evidência insuficiente; 39 falhas de validação semântica.
-- Engine própria mínima **não** justificada por dados atuais: mesma limitação.
-- Nenhuma alternativa demonstra ganho adversarial suficiente → **reformular promessa de polimorfismo**
-  é o caminho aplicável se nova rodada também falhar.
-- ADR 001 permanece `Proposed`; spec do core bloqueada.
-- Tratar Bytenode em spec separada; não usá-lo para decidir arquitetura frontend.
+- **ADR 001 `Accepted`:** Alternativa A — orquestrar `javascript-obfuscator` free, sem fork nem engine própria.
+- Fork/extensão e engine própria: **0 pp** adversarial — não selecionadas.
+- **Polimorfismo defensivo não demonstrado** → reformular Goal do `js-condom-core` antes de claim pública.
+- Spec do core: **bloqueada** para Atomic Steps (AC14 / OQ2–4 pendentes).
+- Bytenode: spec separada; não decide arquitetura frontend.
 
-### Próximos passos (não implementação do core)
+### Próximos passos de produto (não implementação imediata do core)
 
-1. Corrigir 39 falhas de validação semântica nos candidatos.
-2. Implementar `eval-ast-compare` e `eval-human-rubric` no harness de recovery.
-3. Alinhar hashes de blinding entre manifest oficial e matriz.
-4. Integrar avaliador LLM ou manter dimensão explicitamente inconclusiva em nova rodada.
-5. Decidir entre nova matriz oficial ou reformulação do Goal do produto.
+1. Reformular Goal e posicionamento — ofuscação offline OSS sem claim de polimorfismo defensivo, ou
+2. Nova rodada com corpus/adversário mais exigente (sem recalibrar retrospectivamente o threshold).
 
 ## 8. O que este benchmark não conclui
 
@@ -274,7 +273,8 @@ Conclusão AC17: `evidencia-insuficiente`. Relatório aprovado por @andersonalve
 - Não conclui que free, fork ou engine própria resistem a um atacante white-box.
 - Não conclui que Bytenode é portável entre arquiteturas sem teste.
 - Não conclui que ausência de decompilador público torna bytecode irreversível.
-- Não autoriza implementação do core: ADR 001 `Proposed`, conclusão `evidencia-insuficiente`.
+- Não autoriza implementação do core sem reformulação do Goal: POC mediu 0 pp adversarial; ADR
+  `Accepted` para orquestração OSS apenas.
 
 ## 9. Fontes primárias consultadas
 
@@ -297,11 +297,11 @@ Todas acessadas em 2026-08-09:
 
 | Claim | Estado atual | Evidência / próximo passo |
 |---|---|---|
-| As oito transforms free são revertidas em segundos | `[DISCOVERY INPUT]` | Corpus, versões, comandos, artefatos e tempos ainda não registrados neste repo |
-| Diversidade nativa do free não basta | Evidência parcial — candidatos custom não superaram baseline no endpoint primário; conclusão global insuficiente | Nova matriz após correções semânticas |
-| Fork acrescenta resistência material | Não demonstrado — 39 falhas semânticas; taxa de conclusão adversarial superior ao baseline | Corrigir validação semântica; reexecutar |
-| Engine própria supera fork | Não demonstrado — mesma limitação | Corrigir validação semântica; reexecutar |
-| `javascript-obfuscator` representa melhor baseline OSS que `js-confuser` | **Resolvida (OQ8)** — obfuscator suficiente como baseline nesta rodada; justificativa publicada | Comparação direta exige rodada separada se necessário |
-| Polimorfismo reduz sucesso de LLM | Inconclusivo — dimensão não integrada à matriz oficial | Integrar avaliador ou declarar N/A em nova rodada |
-| Rust/Wasm atende performance de arquivos grandes | `[UNVERIFIED]` | Benchmark após necessidade arquitetural demonstrada |
-| `.jsc` funciona entre x86 e ARM | `[CONFLICT]` | Matriz de compilação/execução por runtime e arquitetura |
+| As oito transforms free são revertidas em segundos | `[DISCOVERY INPUT]` | Tempos absolutos ainda não registrados neste repo |
+| Diversidade nativa do free não basta | **Medido — 0 pp** | 100% recuperação em baseline e candidatos no corpus oficial |
+| Fork acrescenta resistência material | **Não demonstrado** | 0 pp; semântica 144/144 após correção ESM |
+| Engine própria supera fork | **Não demonstrado** | 0 pp; intervalo inferior 0 pp vs threshold 5 pp |
+| `javascript-obfuscator` vs `js-confuser` | **Resolvida (OQ8)** | Obfuscator suficiente como baseline nesta rodada |
+| Polimorfismo reduz sucesso de LLM | **Medido — sem ganho** | 0/480 trials LLM concluíram no budget |
+| Rust/Wasm atende performance de arquivos grandes | `[UNVERIFIED]` | Benchmark após necessidade arquitetural |
+| `.jsc` funciona entre x86 e ARM | `[CONFLICT]` | Matriz de compilação/execução por runtime |

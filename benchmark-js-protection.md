@@ -1,8 +1,8 @@
 # Benchmark de proteção JS/TS — discovery corrigido
 
-> **Status:** POC oficial executado em 2026-08-09; benchmark atualizado com evidência medida. Não
-> aprova arquitetura — conclusão `evidencia-favorece-alternativa-mais-simples`; ADR `Accepted`
-> (Alternativa A).
+> **Status:** POC oficial executado em 2026-08-09; protocolo de eficácia adversarial considerado
+> inconclusivo após revisão do harness. ADR 002 mantém a orquestração OSS como decisão de
+> simplicidade, sem aceitar a medição de 0 pp como evidência de resistência.
 >
 > **Objetivo:** registrar capacidades documentadas, evidência disponível e lacunas. A matriz oficial
 > do [POC comparativo de polimorfismo](specs/js-condom-polymorphism-poc.md) foi executada; este
@@ -99,14 +99,17 @@ Portanto, são incorretas as claims absolutas de que o free:
 ### 3.2 O que a matriz oficial mediu
 
 A matriz oficial (`official-2026-08-09`, reexecutada após correção de exports ESM) comparou
-`oss-baseline`, `oss-extension` e `own-minimal` sob protocolo congelado. Conclusão AC17:
-`evidencia-favorece-alternativa-mais-simples`.
+`oss-baseline`, `oss-extension` e `own-minimal` sob protocolo congelado. A revisão posterior
+classificou a eficácia adversarial como `evidencia-insuficiente`: o evaluator primário desabilitou
+`deobfuscate` e `unpack` no `webcrack` e validou apenas a execução do resultado.
 
 - Semântica: **144/144** células candidatas válidas; calibração 4/4.
-- Endpoint primário: **100%** conclusão em baseline, `oss-extension` e `own-minimal` — **0 pp**
-  de redução vs threshold congelado de **5 pp**.
-- Evidência **não justifica** fork, extensão ou engine própria; favorece orquestração OSS (Alternativa A).
-- Anti-LLM: medido — 0/480 trials concluíram dentro do budget.
+- Endpoint primário publicado: **100%** conclusão em baseline, `oss-extension` e `own-minimal` —
+  **não válido como medição de recuperação**, porque a etapa de desofuscação foi desabilitada.
+- A escolha de orquestração OSS é uma decisão de simplicidade e ausência de evidência favorável a
+  uma engine própria; não é prova de eficácia relativa.
+- Anti-LLM: **inconclusivo** — 480 trials foram registrados com `maxToolInvocations: 0`, sem
+  chamadas ao modelo.
 
 Claims **não** sustentadas pelo POC:
 
@@ -190,11 +193,9 @@ function obfuscation, domain/date locks e detecção de alterações.
 `[VERIFIED: repositório oficial do js-confuser, acesso em 2026-08-09]`
 
 Não há resultado adversarial reproduzível comparando `js-confuser` ao `javascript-obfuscator` neste
-repositório; eficácia relativa permanece `[UNVERIFIED]`. **OQ8 resolvida:** `javascript-obfuscator`
-foi aceito como baseline OSS suficiente para a matriz mínima; `js-confuser` foi excluído do POC
-inicial com justificativa publicada no relatório oficial (transforms AST, seed configurável,
-integridade npm no manifest). Comparação direta com `js-confuser` não é pré-requisito para a
-decisão atual; qualquer comparação exige rodada separadamente aprovada.
+repositório; eficácia relativa permanece `[UNVERIFIED]`. `javascript-obfuscator` foi mantido como
+baseline operacional da rodada mínima por transforms AST, seed configurável e integridade npm no
+manifest. Comparação direta com `js-confuser` exige rodada separadamente aprovada.
 
 PreEmptive JSDefender documenta um produto comercial de proteção JavaScript. Claims de força,
 anti-tamper e resistência pertencem ao fornecedor e não foram medidas neste repositório.
@@ -207,10 +208,10 @@ Ele não é candidato de implementação da v1 open source; permanece referênci
 
 | Alternativa | Offline | Output variável documentado | Bytecode | Eficácia medida neste repo | Papel atual |
 |---|---:|---:|---:|---:|---|
-| `javascript-obfuscator` free | Sim | Sim, PRNG/seed e opções aleatórias | Não | Sim — 100% recuperação no corpus oficial; **selecionado** (ADR Alternativa A) | Baseline e engine v1 |
-| `js-confuser` | Sim | Opções/transforms documentadas; variabilidade a medir | Não | Não | Alternativa OSS; excluída com justificativa (OQ8 resolvida) |
-| Fork/extensão OSS | Sim | Medido no POC | Não | Sim — 0 pp adversarial; semântica válida | **Não selecionada** |
-| Engine própria mínima TS | Sim | Medido no POC | Não | Sim — 0 pp adversarial | **Não selecionada** |
+| `javascript-obfuscator` free | Sim | Sim, PRNG/seed e opções aleatórias | Não | Não medido de forma válida neste POC | Baseline operacional da v1 |
+| `js-confuser` | Sim | Opções/transforms documentadas; variabilidade a medir | Não | Não medido | Alternativa OSS; fora da rodada mínima |
+| Fork/extensão OSS | Sim | Medido no POC | Não | Inconclusivo; semântica válida | **Não selecionada** |
+| Engine própria mínima TS | Sim | Medido no POC | Não | Inconclusivo; semântica válida | **Não selecionada** |
 | Engine própria Rust/Wasm | Sim em tese | Não medido | Não por si só | Não | Consideração futura condicionada |
 | Bytenode | Sim | Não é objetivo primário | V8 cached data + loader | Não para resistência | Adapter futuro Node/Electron |
 | Obfuscator.io Pro | Não, segundo tabela oficial | Sim, VM/opcodes | VM customizada | Não | Fora da restrição offline |
@@ -250,21 +251,22 @@ A matriz oficial (`official-2026-08-09`) foi executada. Artefatos:
 - [`experiments/official/results.json`](experiments/official/results.json)
 - [`experiments/official/blinding-map.json`](experiments/official/blinding-map.json)
 
-Conclusão AC17: `evidencia-favorece-alternativa-mais-simples`. Relatório aprovado por @andersonalves
-em 2026-08-09 (reexecução final).
+O relatório permanece como artefato histórico, mas sua conclusão de eficácia foi reclassificada
+como `evidencia-insuficiente` pelo ADR 002.
 
 ### Depois do POC — estado atual
 
-- **ADR 001 `Accepted`:** Alternativa A — orquestrar `javascript-obfuscator` free, sem fork nem engine própria.
-- Fork/extensão e engine própria: **0 pp** adversarial — não selecionadas.
-- **Polimorfismo defensivo não demonstrado** → reformular Goal do `js-condom-core` antes de claim pública.
+- **ADR 002 `Accepted`:** orquestrar `javascript-obfuscator` free como wrapper operacional, sem fork nem engine própria.
+- Fork/extensão e engine própria: não selecionadas por simplicidade; eficácia relativa inconclusiva.
+- **Polimorfismo defensivo não demonstrado** → não fazer essa claim.
 - Spec do core: **bloqueada** para Atomic Steps (AC14 / OQ2–4 pendentes).
 - Bytenode: spec separada; não decide arquitetura frontend.
 
 ### Próximos passos de produto (não implementação imediata do core)
 
-1. Reformular Goal e posicionamento — ofuscação offline OSS sem claim de polimorfismo defensivo, ou
-2. Nova rodada com corpus/adversário mais exigente (sem recalibrar retrospectivamente o threshold).
+1. Aprovar a spec de correção e reformular o Goal do core para operação offline, reprodução e
+   auditabilidade.
+2. Fazer nova rodada somente se resistência adversarial continuar sendo requisito de produto.
 
 ## 8. O que este benchmark não conclui
 
@@ -273,8 +275,8 @@ em 2026-08-09 (reexecução final).
 - Não conclui que free, fork ou engine própria resistem a um atacante white-box.
 - Não conclui que Bytenode é portável entre arquiteturas sem teste.
 - Não conclui que ausência de decompilador público torna bytecode irreversível.
-- Não autoriza implementação do core sem reformulação do Goal: POC mediu 0 pp adversarial; ADR
-  `Accepted` para orquestração OSS apenas.
+- Não autoriza implementação do core com claim de proteção: o endpoint publicado é inconclusivo;
+  o ADR 002 aceita apenas a orquestração OSS como decisão operacional de menor complexidade.
 
 ## 9. Fontes primárias consultadas
 
@@ -298,10 +300,10 @@ Todas acessadas em 2026-08-09:
 | Claim | Estado atual | Evidência / próximo passo |
 |---|---|---|
 | As oito transforms free são revertidas em segundos | `[DISCOVERY INPUT]` | Tempos absolutos ainda não registrados neste repo |
-| Diversidade nativa do free não basta | **Medido — 0 pp** | 100% recuperação em baseline e candidatos no corpus oficial |
-| Fork acrescenta resistência material | **Não demonstrado** | 0 pp; semântica 144/144 após correção ESM |
-| Engine própria supera fork | **Não demonstrado** | 0 pp; intervalo inferior 0 pp vs threshold 5 pp |
-| `javascript-obfuscator` vs `js-confuser` | **Resolvida (OQ8)** | Obfuscator suficiente como baseline nesta rodada |
-| Polimorfismo reduz sucesso de LLM | **Medido — sem ganho** | 0/480 trials LLM concluíram no budget |
+| Diversidade nativa do free não basta | **Inconclusivo** | evaluator primário não executou desofuscação; corrigir harness se a claim permanecer |
+| Fork acrescenta resistência material | **Inconclusivo** | semântica 144/144, mas endpoint de recuperação inválido |
+| Engine própria supera fork | **Inconclusivo** | semântica válida, sem comparação adversarial causal |
+| `javascript-obfuscator` vs `js-confuser` | **Não medido** | `javascript-obfuscator` permanece baseline operacional; comparação de eficácia exige rodada própria |
+| Polimorfismo reduz sucesso de LLM | **Inconclusivo** | 0/480 trials fizeram chamada; `maxToolInvocations: 0` |
 | Rust/Wasm atende performance de arquivos grandes | `[UNVERIFIED]` | Benchmark após necessidade arquitetural |
 | `.jsc` funciona entre x86 e ARM | `[CONFLICT]` | Matriz de compilação/execução por runtime |

@@ -1,8 +1,8 @@
 # Spec: `js-condom` core v1
 
-> **Status:** Draft — ADR 001 `Accepted` (Alternativa A: orquestração OSS). POC não sustenta claim
-> de polimorfismo defensivo (0 pp vs threshold 5 pp). Goal pendente de reformulação; Atomic Steps
-> do core **proibidos** até OQ2–4 e reposicionamento de produto.
+> **Status:** Draft — ADR 002 aceita a orquestração OSS como decisão operacional. A eficácia
+> adversarial do POC é inconclusiva porque o evaluator primário não executou desofuscação. Goal
+> pendente de reformulação; Atomic Steps do core **proibidos** até aprovação do reposicionamento.
 
 ## Goal
 
@@ -138,16 +138,16 @@ sem output parcial.
 5. Seed não é segredo e pode constar do relatório de build.
 6. O pipeline selecionado no ADR terá identificador e versão próprios para reprodução.
 7. Código fora da matriz suportada falha fechado; a v1 não oferece modo `unsafe`.
-8. O POC oficial concluiu com `evidencia-favorece-alternativa-mais-simples`: semântica 144/144,
-   mas 0 pp de redução adversarial no endpoint primário (threshold congelado: 5 pp). Não sustenta
-   claim pública de polimorfismo defensivo; Goal deve ser reformulado antes do aceite desta spec.
+8. O POC oficial preservou semântica em 144/144 células, mas sua eficácia adversarial foi
+   reclassificada como inconclusiva: o endpoint primário desabilitou desofuscação e unpack. Não
+   existe claim pública de polimorfismo defensivo; o Goal deve ser reformulado antes do aceite.
 
 ## Risks
 
 | Risco | Impacto | Mitigação atual |
 |---|---|---|
 | Pipeline altera semântica | Crítico | 100% no corpus suportado, multi-seed, hazards detectados e falha fechada |
-| Ganho defensivo não supera baseline | Crítico | POC mediu 0 pp; reformular Goal antes de claim pública |
+| Ganho defensivo não demonstrado | Crítico | POC inconclusivo; reformular Goal antes de claim pública |
 | Parser/codegen não cobre sintaxe real | Alto | Matriz explícita, fixtures por feature e `unsupported_syntax` |
 | Build não determinístico impede reproduzir incidente | Alto | Seed efetiva, versões/hashes no metadata e teste byte-idêntico |
 | Source map expõe código original | Alto | Separado, default off, `sourcesContent` false e documentação de custódia |
@@ -434,9 +434,9 @@ target/formato. Não existe estado implícito.
 
 ## Acceptance criteria
 
-1. **Gate arquitetural:** ADR 001 `Accepted` (Alternativa A: `oss-baseline` / `javascript-obfuscator`).
-   POC executado sem ganho adversarial no threshold — **AC14 não satisfeito**; Atomic Steps do core
-   bloqueados até reformulação do Goal e OQ2–4.
+1. **Gate arquitetural:** ADR 002 `Accepted` mantém `oss-baseline` / `javascript-obfuscator` como
+   wrapper operacional de menor complexidade. A eficácia adversarial do POC é inconclusiva —
+   **AC14 não satisfeito**; Atomic Steps do core bloqueados até reformulação e aprovação do Goal.
 2. **Offline:** testes executam CLI/API com rede bloqueada e confirmam zero tentativa de conexão.
 3. **CLI arquivo:** comando mínimo protege `.js`, `.mjs` ou `.cjs` suportado e publica código mais
    report semanticamente válido.
@@ -460,8 +460,9 @@ target/formato. Não existe estado implícito.
     nenhum erro publica output protegido parcial.
 13. **Report:** relatório contém paths relativos, hashes, versões, seed e status por arquivo, sem
     source, mapa, path absoluto ou stack.
-14. **Proteção:** qualquer claim pública referencia o protocolo/resultado do POC e atende ao
-    threshold aprovado; diversidade estrutural isolada não satisfaz este AC.
+14. **Proteção:** nenhuma claim pública de resistência é permitida com a evidência atual; qualquer
+    claim futura exige POC válido e threshold aprovado. Diversidade estrutural isolada não satisfaz
+    este AC.
 15. **Budgets:** performance, output size, runtime overhead e limites de recurso têm baseline,
     ambiente, corpus e valores aprovados antes do aceite final desta spec.
 16. **Supply chain:** release inclui lockfile, checksums e provenance verificáveis para pacote e
@@ -474,8 +475,8 @@ target/formato. Não existe estado implícito.
 - [Benchmark corrigido](../benchmark-js-protection.md) — capacidades, evidência e lacunas do
   mercado, atualizado em 2026-08-09.
 - [Spec do POC](js-condom-polymorphism-poc.md) — protocolo que valida eficácia e arquitetura.
-- [ADR 001](../adr/001-engine-propria-vs-orquestracao.md) — `Accepted`; Alternativa A; POC com
-  `evidencia-favorece-alternativa-mais-simples`, 0 pp adversarial.
+- [ADR 002](../adr/002-evidencia-e-posicionamento-v1.md) — `Accepted`; orquestração OSS como
+  decisão operacional; eficácia adversarial do POC inconclusiva.
 - [Relatório oficial do POC](../experiments/official/report.md) — matriz `official-2026-08-09`.
 - [Resultados completos](../experiments/official/results.json) — trials e agregados auditáveis.
 - [Node.js release lifecycle](https://nodejs.org/en/about/previous-releases) — linhas mantidas,
@@ -488,14 +489,13 @@ target/formato. Não existe estado implícito.
 
 ## Open questions
 
-1. **Qual candidato vence o POC e qual `engineId` será aceito?** **Resolvida parcialmente:**
-   ADR aceita Alternativa A — `engineId: oss-baseline` (`javascript-obfuscator` 4.1.0). Fork e
-   engine própria rejeitados. Claim de polimorfismo defensivo **não** sustentada (0 pp).
-   **Owner:** @andersonalves. **Status:** arquitetura fechada; Goal pendente.
-2. **Qual threshold adversarial sustenta a claim pública?** O endpoint primário é a redução da taxa
-   de conclusão dentro do budget contra `oss-baseline`; o valor numérico deve ser calibrado no
-   piloto e congelado antes da matriz oficial. **Owner:** @andersonalves. **Deadline:** fim do
-   piloto do POC.
+1. **Qual candidato vence o POC e qual `engineId` será aceito?** **Resolvida para entrega:**
+   ADR 002 mantém `engineId: oss-baseline` (`javascript-obfuscator` 4.1.0) como baseline
+   operacional. Fork e engine própria não serão construídos; eficácia relativa permanece
+   inconclusiva. **Owner:** @andersonalves. **Status:** arquitetura de entrega fechada; Goal pendente.
+2. **Qual threshold adversarial sustenta uma eventual claim pública?** Nenhum threshold está ativo
+   enquanto o evaluator não medir recuperação de lógica. Se resistência continuar requisito, uma
+   nova spec de POC deverá definir evaluator, oracle e threshold. **Owner:** @andersonalves.
 3. **Quais budgets de build time, tamanho e runtime overhead são aceitáveis?** Derivar do corpus e
    hardware de release. **Owner:** @andersonalves. **Deadline:** antes do aceite desta spec.
 4. **Qual linha LTS mínima de Node será suportada no primeiro release?** Escolher entre linhas ainda
@@ -533,6 +533,6 @@ target/formato. Não existe estado implícito.
 
 ---
 
-> **Handoff bloqueado:** ADR 001 `Accepted` (orquestração OSS). POC mediu 0 pp adversarial — Goal
-> e claim de proteção precisam ser reformulados. Não criar Atomic Steps do core até reformulação do
-> Goal, OQ2–4 resolvidas e AC14 satisfeito ou explicitamente descartado no reposicionamento.
+> **Handoff bloqueado:** ADR 002 `Accepted` (orquestração OSS operacional). O POC é inconclusivo
+> para eficácia adversarial — Goal e claim de proteção precisam ser reformulados. Não criar Atomic
+> Steps do core até a nova spec ser aprovada.

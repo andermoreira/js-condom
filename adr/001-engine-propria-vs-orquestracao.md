@@ -1,106 +1,154 @@
 # ADR 001 — Engine própria de ofuscação vs. orquestração de ferramentas existentes
 
+> **Status:** Proposed — decisão final bloqueada pelo [POC comparativo de polimorfismo](../specs/js-protect-polymorphism-poc.md)
+>
+> **Data:** 2026-08-09
+> **Owner:** @andersonalves
+
 ## Context
 
-A spec [`js-protect — Core Obfuscation Engine`](../specs/js-protect-core.md) define uma
-ferramenta open source de proteção de código JS/TS, offline, com CLI e API programática.
+A spec [`js-protect — Core Obfuscation Engine`](../specs/js-protect-core.md) propõe uma ferramenta
+open source e offline para dificultar engenharia reversa de JavaScript distribuído. O diferencial
+pretendido é reduzir o reuso de padrões de desofuscação entre builds por meio de diversidade
+estrutural controlada por seed.
 
-O discovery ([`benchmark-js-protection.md`](../benchmark-js-protection.md), §6) recomendou
-explicitamente que `js-protect` fosse um **wrapper/orquestrador** de ferramentas maduras já
-existentes: `bytenode` (V8 bytecode no backend) + `javascript-obfuscator` (transforms AST no
-frontend), unificados por um config file e plugins de bundler, "com custo zero e sem depender de
-API externa".
+O discovery inicial ([`benchmark-js-protection.md`](../benchmark-js-protection.md)) registrou que:
 
-Forças em conflito registradas pelos dados do benchmark:
+- `webcrack` declara suporte à desofuscação de output do obfuscator.io
+  `[VERIFIED: repositório oficial, acesso em 2026-08-09]`;
+- as transforms AST tradicionais, isoladas, não são tratadas como proteção forte no produto;
+- VM bytecode, técnicas comercializadas como polimórficas e defesas anti-LLM aparecem como as
+  classes de maior resistência no benchmark, mas o ganho causal do polimorfismo proposto pelo
+  `js-protect` ainda está `[UNVERIFIED]`;
+- o `javascript-obfuscator` free já possui PRNG configurável: `seed: 0` opera sem seed fixa, e a
+  ferramenta oferece shuffle, rotate e escolhas probabilísticas
+  `[VERIFIED: documentação oficial, acesso em 2026-08-09]`;
+- `vm.Script.createCachedData()` cria cache de compilação para ser usado junto de código fonte no
+  construtor de `vm.Script`; não define sozinho um módulo `.jsc` carregável por `require()`
+  `[VERIFIED: documentação Node.js v26.7.0, acesso em 2026-08-09]`;
+- Bytenode acrescenta wrapping, dummy source e loader para produzir módulos `.jsc`, com restrições
+  documentadas de versão/process type do V8
+  `[VERIFIED: repositório oficial, acesso em 2026-08-09]`.
 
-- As 8 transforms AST-level do `javascript-obfuscator` free (name mangling, string encryption,
-  control flow flattening, dead code injection, self-defending, debug protection, domain lock,
-  numbers to expressions) são **revertidas por `webcrack` em segundos** (§2.1, §3).
-- Apenas três classes de técnica resistem de forma relevante: **VM bytecode** (reversão "Alta"),
-  **ofuscação polimórfica** (reversão "Muito Alta", derrota reconhecimento de padrão por LLM) e
-  **anti-LLM** (reversão "Muito Alta") — §1.
-- `javascript-obfuscator` free **não oferece** polimorfismo; ele é exclusivo do tier Pro (VM) e de
-  ferramentas enterprise como Jscrambler (§2.1, §2.4).
-
-Requisito não-funcional relevante da spec: output **polimórfico** (único por build) como
-diferencial central de proteção, definido como flagship da v1 (Goal, US7, AC7).
+Esses fatos invalidam duas premissas do rascunho anterior deste ADR: que output free é sempre
+determinístico e que uma engine Rust/Wasm é, sem experimento, o único caminho para output único por
+build. Também não demonstram o oposto: randomização sintática do free pode ser insuficiente para
+elevar o custo de reversão. Essa é a hipótese que o POC deve testar.
 
 ## Problem
 
-Para entregar o diferencial de polimorfismo definido na spec, `js-protect` deve **orquestrar
-ferramentas de terceiros existentes** ou **implementar engine própria** de manipulação de AST?
+Qual é a alternativa de menor complexidade que, operando offline, demonstra ganho material de
+resistência à desofuscação automatizada sem quebrar a semântica do código suportado?
 
-A decisão determina a arquitetura do núcleo (parser + transforms + geração de código),
-o esforço de engenharia e o teto de proteção alcançável.
+A decisão precisa separar duas preocupações independentes:
+
+1. proteção AST de código distribuído ao browser;
+2. empacotamento em bytecode V8 para Node.js/Electron.
 
 ## Alternatives Considered
 
-### A. Orquestração de ferramentas existentes (recomendação do benchmark §6)
-Wrapper sobre `bytenode` + `javascript-obfuscator` free, com config e plugins unificados.
+### A. Orquestrar ferramentas existentes sem extensão
 
-- **Pros:** esforço mínimo; ferramentas maduras e mantidas; cobre backend (bytenode, proteção
-  real e irreversível sem decompilador V8 público) com custo próximo de zero.
-- **Cons:** **não permite implementar polimorfismo** — o `javascript-obfuscator` free não expõe
-  esse controle e seu output é determinístico e casável por `webcrack`. O teto de proteção de
-  frontend fica limitado ao que já é revertido em segundos. `js-protect` seria apenas uma camada
-  de UX sobre ferramentas free, sem diferencial defensável frente aos dados do benchmark.
+Usar `javascript-obfuscator` free para AST e Bytenode para Node.js/Electron, com CLI e configuração
+unificadas.
 
-### B. Engine própria em Rust/Wasm com controle de AST
-Parser (swc/oxc) + transforms próprias, com um PRNG seedado dirigindo todas as escolhas.
+- **Pros:** menor esforço inicial; parsers, transforms e loaders já exercitados; entrega offline.
+- **Cons:** não cria diferencial técnico demonstrado; padrões conhecidos podem continuar sendo
+  reconhecidos por desofuscadores; a camada de frontend pode se limitar a UX sobre ferramentas
+  existentes.
 
-- **Pros:** controle no nível de AST habilita **polimorfismo real** — seed ausente gera output
-  único por build; seed fixa dá build reproduzível. É o único caminho para o diferencial da spec.
-  Base para técnicas futuras (VM bytecode, anti-LLM) sob o mesmo motor. Sem dependência de
-  binários free de terceiros no caminho crítico.
-- **Cons:** esforço de engenharia significativamente maior; risco de paridade incompleta de parsing
-  de JS moderno (mitigado usando swc/oxc, não parser próprio); reimplementar as 8 transforms base
-  não agrega proteção sobre o free **se isoladas** — o valor vem exclusivamente da camada
-  polimórfica sobre elas.
+### B. Estender ou manter fork mínimo de uma engine OSS
 
-### C. Híbrido — engine própria no frontend, `bytenode` orquestrado no backend
-Engine própria para o output polimórfico do browser; delegar V8 bytecode ao `bytenode` no backend.
+Usar parser e pipeline de uma engine OSS existente, adicionando variantes estruturais específicas
+e um protocolo explícito de seed. A hipótese inicial usa `javascript-obfuscator`; `js-confuser`
+permanece alternativa OSS que o relatório do POC deve justificar excluir ou recomendar para rodada
+adicional.
 
-- **Pros:** reaproveita a proteção madura e irreversível do bytenode sem reimplementá-la; foca o
-  esforço próprio onde há diferencial (polimorfismo).
-- **Cons:** duas bases de manutenção e um contrato de config que precisa cobrir os dois mundos;
-  o passo 12 da spec já prevê `vm.Script.createCachedData()` diretamente, tornando a dependência
-  do bytenode opcional. Fica registrado como evolução possível, não como decisão da v1.
+- **Pros:** testa a hipótese de diversidade sem reimplementar parser e oito transforms commodity;
+  menor tempo até evidência; licença BSD-2-Clause permite modificação e redistribuição, preservados
+  seus termos `[VERIFIED: licença do repositório oficial, acesso em 2026-08-09]`.
+- **Cons:** custo de manter fork; arquitetura interna pode limitar variantes desejadas; qualquer
+  ganho continua dependente de medição adversarial.
+
+### C. Engine própria em TypeScript sobre parser existente
+
+Implementar apenas as transforms diferenciadoras sobre AST de SWC/Oxc/Babel, mantendo a execução
+da ferramenta no Node.js.
+
+- **Pros:** controle do pipeline sem bridge Wasm; integração direta com o ecossistema de build;
+  permite substituir incrementalmente componentes comprovadamente limitantes.
+- **Cons:** ainda cria engine nova; precisa provar paridade de parsing/generation e manutenção
+  superior ao fork.
+
+### D. Engine própria em Rust/Wasm
+
+Usar SWC/Oxc em Rust, transforms próprias e bridge Wasm para Node.js.
+
+- **Pros:** controle de AST e potencial de desempenho/portabilidade a validar; caminho adequado se
+  o POC demonstrar que as alternativas anteriores não expressam as variantes necessárias.
+- **Cons:** maior superfície inicial: parser, transforms, codegen, source maps, ABI Wasm e pacote
+  npm; performance superior e ganho defensivo permanecem `[UNVERIFIED]` até medição.
+
+### E. Bytecode V8 como adapter independente
+
+Usar Bytenode para o caso Node.js/Electron, sem acoplar essa decisão à engine AST de frontend.
+
+- **Pros:** reutiliza loader e compatibilidade já documentados; impede que uma decisão de backend
+  seja usada como justificativa para a arquitetura frontend.
+- **Cons:** adiciona dependência e exige matriz explícita de Node/Electron/V8; código dependente de
+  `Function.prototype.toString` e alguns casos com arrow functions têm limitações documentadas.
 
 ## Decision
 
-Adotar **engine própria (Alternativa B)**: parser via swc/oxc + transforms próprias em Rust
-compiladas para Wasm, com um PRNG seedado dirigindo o polimorfismo.
+Adotar, enquanto este ADR estiver **Proposed**, uma decisão em duas fases:
 
-Motivo determinante: o diferencial de produto da v1 é o **polimorfismo**, e — segundo os dados do
-próprio discovery — nenhuma ferramenta free orquestrável o entrega. Orquestrar `javascript-obfuscator`
-free (Alternativa A) tem teto de proteção igual ao que `webcrack` reverte em segundos, sem
-diferencial defensável. O controle de AST da engine própria é pré-requisito técnico do polimorfismo.
+1. executar o [POC comparativo de polimorfismo](../specs/js-protect-polymorphism-poc.md), usando a
+   Alternativa A como baseline e comparando ao menos uma extensão/fork mínimo (B) e uma transform
+   própria mínima (C ou D);
+2. selecionar, após o relatório do POC, a alternativa de menor complexidade que preserve 100% da
+   semântica no subconjunto suportado e demonstre ganho adversarial suficiente para a proposta do
+   produto.
 
-A escolha entre **swc e oxc** permanece aberta (Open question #1 da spec) e não é objeto deste ADR.
-A compilação de V8 bytecode no backend é feita diretamente via `vm.Script.createCachedData()`
-(passo 12 da spec), sem depender de `bytenode`; a orquestração híbrida (Alternativa C) fica como
-consideração futura, não como escopo da v1.
+A Alternativa B é a **hipótese inicial recomendada**, não a arquitetura aceita: é o caminho mais
+barato para falsificar a necessidade de engine própria. Rust/Wasm só será aceito se o POC mostrar
+uma limitação concreta das alternativas mais simples ou um benefício mensurado que justifique sua
+superfície adicional.
+
+Para bytecode V8, a hipótese da v1 é a Alternativa E. Não será implementado um loader próprio sobre
+`vm.Script.createCachedData()` nesta decisão sem uma spec separada demonstrando necessidade.
+
+Nenhum item futuro de VM customizada ou anti-LLM fundamenta a escolha atual.
 
 ## Consequences
 
-- **Positive:** habilita o polimorfismo como diferencial central; controle total do pipeline de
-  transforms; base única para técnicas futuras (VM bytecode, anti-LLM) sem trocar de arquitetura.
-- **Negative:** maior esforço de engenharia e superfície de manutenção; a proteção das transforms
-  base isoladas (sem a camada polimórfica) não supera o `javascript-obfuscator` free — o valor
-  depende de a camada polimórfica ser efetiva.
-- **Neutral / to monitor:** paridade de parsing de JS moderno (ES2022+) — mitigada por usar
-  swc/oxc; performance da engine em Wasm para arquivos grandes (Open question #2 / POC), com
-  fallback napi-rs previsto no risco correspondente da spec.
+- **Positive:** evita reimplementar transforms frágeis antes de validar o diferencial; produz
+  evidência comparável; separa frontend AST de backend bytecode; mantém aberta a evolução para
+  engine própria.
+- **Negative:** adia a decisão final e qualquer promessa pública de resistência por polimorfismo;
+  exige um POC adversarial antes da implementação do core.
+- **Neutral / to monitor:** um fork pode se tornar inviável por custo de merge ou limites internos;
+  esse resultado é evidência válida a favor de engine própria, não falha do processo.
 
 ## Trade-offs
 
-Aceita-se conscientemente **mais custo de engenharia** em troca de um **diferencial de proteção que
-a orquestração de ferramentas free não alcança**. Fica preservada a opção futura de orquestrar
-`bytenode` (Alternativa C) e de adicionar VM bytecode sobre a mesma engine.
+Aceita-se um atraso curto de discovery para evitar um investimento arquitetural grande baseado em
+uma claim ainda não medida. A v1 perde a narrativa imediata de “engine própria”, mas ganha um
+critério verificável para decidir se essa engine é necessária.
 
-Limite conhecido e gatilho de evolução: se o POC (Open question #2) demonstrar que o polimorfismo
-em Wasm não atinge os alvos de performance da spec (p95 < 2s para 1MB/high) **e** o fallback
-napi-rs não fechar a lacuna, reabrir este ADR para reavaliar a Alternativa C (orquestração no
-backend) como forma de reduzir a superfície própria. Se, além disso, medições mostrarem que o
-polimorfismo isolado não eleva materialmente o custo de reversão frente ao free, a premissa central
-da decisão cai e o ADR deve ser reaberto.
+Este ADR poderá mudar de `Proposed` para `Accepted` somente depois que:
+
+1. o protocolo e o corpus do POC estiverem versionados;
+2. todas as alternativas comparadas passarem ou falharem explicitamente na equivalência semântica;
+3. o relatório separar diversidade estrutural de custo real de reversão;
+4. o owner registrar a decisão e a justificativa a partir dos dados.
+
+Se nenhuma alternativa demonstrar ganho defensivo suficiente, o requisito de polimorfismo deverá
+ser reformulado ou removido antes de aprovar a spec do core.
+
+## Fontes primárias
+
+- [`javascript-obfuscator` — opções, seed e licença](https://github.com/javascript-obfuscator/javascript-obfuscator)
+- [`js-confuser` — alternativa OSS, capacidades e licença](https://github.com/MichaelXF/js-confuser)
+- [`webcrack` — escopo declarado de desofuscação](https://github.com/j4k0xb/webcrack)
+- [Node.js `vm.Script.createCachedData()`](https://nodejs.org/api/vm.html#scriptcreatecacheddata)
+- [Bytenode — loader, compatibilidade e limitações](https://github.com/bytenode/bytenode)

@@ -1,188 +1,260 @@
-# Spec: js-protect — Core Obfuscation Engine
+# Spec: `js-protect` core v1
+
+> **Status:** Draft — bloqueada pelo
+> [POC comparativo de polimorfismo](js-protect-polymorphism-poc.md) e pelo aceite do
+> [ADR 001](../adr/001-engine-propria-vs-orquestracao.md). Não autoriza Atomic Steps.
 
 ## Goal
 
-Reduzir a viabilidade de engenharia reversa de lógica JavaScript/TypeScript proprietária distribuída ao cliente, gerando output **polimórfico** (único por build) que resiste a reconhecimento de padrão por ferramentas de desofuscação automatizadas e por LLMs — operando 100% offline.
-
-> Entregue como ferramenta open source, com engine própria em Rust (compilada para Wasm), exposta via CLI e API programática para Node.js, Browser e Electron. A decisão de engine própria vs. orquestração de ferramentas existentes está registrada em [ADR 001](../adr/001-engine-propria-vs-orquestracao.md).
-
----
+Elevar de forma mensurável o custo de recuperação automatizada de lógica JavaScript distribuída,
+por meio de uma ferramenta build-time open source e 100% offline que preserva a semântica do
+subconjunto suportado.
 
 ## Non-goals
 
-- **Não** é um serviço SaaS/cloud — opera 100% offline, sem envio de código para servidores externos
-- **Não** implementa VM bytecode obfuscation com opcodes customizados (tipo obfuscator.io Pro) na v1 — a resposta de frontend da v1 é o polimorfismo; VM fica como consideração futura
-- **Não** é um minificador — opera sobre código já empacotado/bundled, complementar a Terser/esbuild
-- **Não** protege contra extração de secrets ou API keys do frontend (responsabilidade do backend)
-- **Não** faz watermarking de código na v1
-- **Não** suporta Internet Explorer ou runtimes anteriores a ES2015
+- Não prometer irreversibilidade, impossibilidade de análise manual ou derrota universal de LLMs.
+- Não proteger secrets, tokens, credenciais ou dados disponíveis em runtime.
+- Não aceitar TypeScript diretamente; o usuário compila e empacota TS antes da proteção.
+- Não executar a ferramenta no browser; a API e CLI da v1 executam em Node.js.
+- Não implementar V8 bytecode, `.jsc`, Bytenode ou VM customizada nesta spec.
+- Não incluir plugins de webpack/esbuild/Vite, watch mode, domain lock, anti-debug, self-defending,
+  watermarking ou proteção seletiva por comentário na v1.
+- Não expor flags por transform; a v1 usa um pipeline avaliado e versionado como unidade.
+- Não processar dependências/vendor, source trees não empacotadas ou múltiplos módulos com
+  resolução própria.
 
----
+## Classificação de escopo
+
+### Requisitos atuais
+
+- Operar offline e não iniciar conexões de rede durante proteção.
+- Proteger arquivo ou diretório de JavaScript já compilado/bundled via CLI Node.js.
+- Oferecer API programática Node.js com o mesmo contrato de configuração da CLI.
+- Preservar 100% da semântica no subconjunto explicitamente suportado.
+- Produzir output variável sem seed fixa e byte-idêntico com seed fixa sob ambiente definido.
+- Gerar e compor source map separado sem exigir seed fixa.
+- Falhar de forma segura diante de sintaxe, semântica dinâmica ou paths não suportados.
+- Publicar metadados suficientes para reproduzir e auditar cada build.
+- Só afirmar ganho de proteção se o POC atender ao threshold aprovado.
+
+### Restrições atuais
+
+- A engine será a alternativa aceita no ADR 001; esta spec não a antecipa.
+- O pipeline de proteção é fixo e versionado na v1; não há extension point especulativo.
+- A ferramenta trata a engine como pública: o atacante conhece algoritmo e implementação.
+- O output é código JavaScript executável pelo adversário; proteção significa aumento de custo,
+  não boundary de segurança.
+- Apenas linhas Node.js em Active LTS ou Maintenance LTS na data do release podem executar a
+  ferramenta.
+
+### Considerações futuras
+
+- Adapter Bytenode para Node.js/Electron.
+- Engine Rust/Wasm, se o POC e profiling justificarem.
+- Plugins de bundler e execução da API no browser.
+- Proteção seletiva, watermarking, runtime integrity e VM customizada.
+- Suporte direto a TypeScript, JSX/TSX e source trees com resolução de módulos.
+
+### Rejeitado nesta spec
+
+- Reimplementar transforms commodity para atingir paridade nominal com concorrentes.
+- Medir proteção por linhas diferentes, tamanho do arquivo ou output visualmente complexo.
+- Usar source map inline em artefato protegido.
+- Tratar timeout/crash de desofuscador como sucesso de proteção.
+- Implementar `.jsc` diretamente com `vm.Script.createCachedData()`.
 
 ## User stories
 
-### US1 — Proteger projeto Node.js via CLI
-**Given** um projeto Node.js com arquivos `.js` no diretório `dist/`
-**When** o dev executa `js-protect dist/ --output dist-protected/ --preset high`
-**Then** todos os arquivos `.js` são processados com ofuscação (name mangling, control flow flattening, string encryption) e salvos em `dist-protected/`
+### US1 — Proteger bundle via CLI
 
-### US2 — Proteger seletivamente funções sensíveis
-**Given** um arquivo com funções públicas e uma função `validateLicense()` proprietária
-**When** o dev adiciona `/* js-protect:high */` antes de `validateLicense()` e executa o CLI
-**Then** apenas a função marcada recebe todas as transformações; o restante recebe ofuscação leve ou nenhuma
+**Given** um arquivo JavaScript bundled compatível e uma configuração válida
 
-### US3 — Compilar para V8 bytecode (Node.js)
-**Given** módulos Node.js que o dev quer distribuir sem source code legível
-**When** o dev executa `js-protect compile src/server.js --target node --bytecode`
-**Then** o arquivo é compilado para V8 bytecode (`.jsc`) que pode ser importado com `require()` normalmente
+**When** o desenvolvedor executa `js-protect bundle.js --out-dir protected`
 
-### US4 — Integrar com webpack
-**Given** um projeto React com webpack
-**When** o dev adiciona `JsProtectWebpackPlugin` com options de ofuscação
-**Then** o bundle final de produção sai ofuscado automaticamente após o build
+**Then** a ferramenta publica `protected/bundle.js` semanticamente equivalente e um relatório de
+build, sem acessar a rede.
 
-### US5 — API programática
-**Given** um script Node.js que gera código dinamicamente
-**When** o dev chama `import { obfuscate } from 'js-protect'` e passa o código fonte como string
-**Then** recebe de volta o código ofuscado como string, com source map opcional
+### US2 — Proteger diretório sem output parcial
 
-### US6 — Erro claro em código inválido
-**Given** um arquivo JavaScript com sintaxe inválida (ex: `const x =`)
-**When** o dev tenta ofuscar esse arquivo
-**Then** o CLI reporta o erro de parsing com linha/coluna e nome do arquivo, sem produzir output corrompido
+**Given** um diretório com arquivos JavaScript compatíveis e um destino ainda inexistente
 
-### US7 — Output polimórfico entre builds
-**Given** o mesmo arquivo fonte e nenhuma `seed` fixa configurada
-**When** o dev executa a ofuscação duas vezes em builds distintos
-**Then** os dois outputs são estruturalmente diferentes (layout do string array, nomes de identificadores, ordem de blocos) porém semanticamente equivalentes; com `seed` fixa, o output é byte-idêntico entre execuções
+**When** todos os arquivos são protegidos com sucesso
 
----
+**Then** a árvore é publicada no destino preservando paths relativos; se qualquer arquivo falhar,
+o destino não é publicado.
+
+### US3 — Integrar pela API Node.js
+
+**Given** um pipeline de build Node.js com código, filename e configuração válidos
+
+**When** o desenvolvedor chama `protect()`
+
+**Then** recebe código, source map opcional e metadados de reprodução pelo mesmo contrato usado
+pela CLI.
+
+### US4 — Reproduzir build
+
+**Given** o mesmo input, configuração, seed, versão da ferramenta, engine e runtime suportado
+
+**When** a proteção é executada novamente
+
+**Then** código, source map e metadados determinísticos são byte-idênticos.
+
+### US5 — Compor source maps
+
+**Given** um bundle acompanhado do source map válido gerado pelo compilador/bundler anterior
+
+**When** a proteção é executada com source map habilitado
+
+**Then** o mapa separado resultante compõe o output protegido até as fontes descritas no mapa de
+entrada, sem incluir `sourcesContent` por padrão.
+
+### US6 — Rejeitar semântica dinâmica perigosa
+
+**Given** código cujo comportamento depende de direct `eval`, `with` ou
+`Function.prototype.toString`
+
+**When** o pipeline selecionado não comprova preservação para aquela construção
+
+**Then** a ferramenta falha com `semantic_hazard`, linha/coluna e orientação acionável, sem
+publicar output.
+
+### US7 — Reportar sintaxe não suportada
+
+**Given** input inválido ou fora da matriz de compatibilidade
+
+**When** o parser rejeita o arquivo
+
+**Then** CLI/API retornam `unsupported_syntax` com arquivo, linha e coluna, sem trecho do source e
+sem output parcial.
 
 ## Assumptions
 
-1. O código de entrada é JavaScript válido (ES2015+). TypeScript deve ser compilado para JS antes da ofuscação
-2. O ambiente Node.js alvo é ≥ 18.x (LTS ativo em 2026)
-3. A CLI opera sobre código já bundled (webpack/esbuild output), não sobre source com imports
-4. Para V8 bytecode, a versão do Node.js que compila deve ser idêntica à versão que executa
-5. O usuário mantém os source maps originais em local seguro; a ferramenta pode gerar source maps do código ofuscado para debugging
-6. Wasm runtime disponível no Node.js (built-in desde Node 12, sem flag experimental desde Node 18)
-7. O usuário entende que ofuscação não é criptografia e não substitui guardar secrets no backend
-
----
+1. O input já foi transpilado, bundled e minificado conforme escolha do usuário; imports externos
+   e resolução de módulos não são responsabilidade da v1.
+2. Um arquivo pode ser `script`, `esm` ou `commonjs`; a combinação com target deve ser declarada.
+3. O target do código gerado é `browser` ou `node`; isso não altera o runtime Node.js da ferramenta.
+4. Source map até TypeScript/originais só é possível quando o usuário fornece o mapa de entrada.
+5. Seed não é segredo e pode constar do relatório de build.
+6. O pipeline selecionado no ADR terá identificador e versão próprios para reprodução.
+7. Código fora da matriz suportada falha fechado; a v1 não oferece modo `unsafe`.
+8. O POC pode invalidar a promessa de proteção; nesse caso Goal e escopo devem ser revistos antes
+   do aceite desta spec.
 
 ## Risks
 
-| Risco | Prob. | Impacto | Mitigação |
-|---|---|---|---|
-| Wasm performance inferior a native em arquivos grandes (>10MB) | Média | Alto | Oferecer fallback via napi-rs (native binary) se Wasm for gargalo |
-| Parsing de JS moderno (ES2022+) incompleto no parser Rust | Média | Alto | Usar swc (parser consolidado, usado pelo Next.js) em vez de implementar parser próprio |
-| Ofuscação quebrar semântica do código (falso positivo) | Alta | Crítico | Test suite extensa com projetos reais; source maps para debug; smoke test pós-ofuscação |
-| Ferramentas de deobfuscação (webcrack, de4js) reverterem as transforms AST em camada única | Alta | Crítico | Polimorfismo (output único por build) como barreira principal — remove o padrão estável que o desofuscador precisa casar; técnicas em camadas; V8 bytecode para backend |
-| Não-determinismo do polimorfismo quebrar source maps e testes de regressão | Alta | Alto | `seed` fixa obrigatória em CI/debug e para gerar source map estável; suite de equivalência semântica roda sobre múltiplos seeds |
-| Reprodução de bug de produção dificultada (cada build é diferente) | Média | Médio | `seed` efetiva registrada em `ObfuscateStats` e logada no artefato de release para reproduzir o build exato |
-| Código gerado ser maior que o original e impactar load time | Média | Médio | Métricas de tamanho no output; presets balanceados; recomendação de GZIP/Brotli no servidor |
-| Incompatibilidade com V8 bytecode entre versões Node | Média | Baixo | Documentar claramente; checksum validation no load; BYTENODE_DEBUG env para diagnóstico |
-| Supply chain attack no Wasm binary distribuído | Baixa | Alto | Build reprodutível; checksums no release; CI com attestation de provenance |
-
----
+| Risco | Impacto | Mitigação atual |
+|---|---|---|
+| Pipeline altera semântica | Crítico | 100% no corpus suportado, multi-seed, hazards detectados e falha fechada |
+| Ganho defensivo não supera baseline | Crítico | POC bloqueia ADR e spec; sem claim pública antes do threshold |
+| Parser/codegen não cobre sintaxe real | Alto | Matriz explícita, fixtures por feature e `unsupported_syntax` |
+| Build não determinístico impede reproduzir incidente | Alto | Seed efetiva, versões/hashes no metadata e teste byte-idêntico |
+| Source map expõe código original | Alto | Separado, default off, `sourcesContent` false e documentação de custódia |
+| Mapa protegido não compõe com mapa anterior | Alto | `filename` obrigatório, input map explícito e testes de composição |
+| Diretório fica parcialmente protegido | Alto | Staging sibling e publicação somente após sucesso integral |
+| Symlink/path escapa do escopo | Alto | Rejeitar symlinks, destino existente, output dentro do input e traversal |
+| Input malicioso causa exaustão | Alto | Limite configurado após baseline, cancelamento e nenhuma execução do input |
+| Output aumenta load/runtime além do aceitável | Alto | Budgets definidos a partir de medição antes do aceite da spec |
+| Supply chain altera engine/binário publicado | Alto | Lockfile, hashes, provenance e verificação de artefato no release |
+| Atacante adapta normalizador à engine OSS | Alto | Threat model white-box e benchmark adversarial versionado |
 
 ## API contract
 
 ### CLI
 
-```
-js-protect <input> [options]
+```text
+js-protect <input> --out-dir <path> [options]
 
 Arguments:
-  input                    Arquivo ou diretório de entrada (caminho ou glob)
+  input                         Arquivo .js ou diretório sem symlinks
+
+Required:
+  -o, --out-dir <path>          Destino novo, fora da árvore de input
 
 Options:
-  -o, --output <path>      Arquivo ou diretório de saída
-  -c, --config <path>      Caminho para js-protect.config.json
-  -p, --preset <name>      Preset: low | medium | high | maximum
-  -t, --target <target>    Ambiente alvo: node | browser | electron
-  --bytecode               Compilar para V8 bytecode (.jsc) — Node.js apenas
-  --seed <number>          Seed fixa → build determinístico/reproduzível (omitido = polimórfico)
-  --source-map             Gerar source maps do código ofuscado
-  --source-map-mode <mode> inline | separate (default: separate)
-  --exclude <glob>         Excluir arquivos do processamento (aceita múltiplos)
-  --watch                  Re-ofuscar em mudanças nos arquivos fonte
-  --dry-run                Mostrar o que seria feito sem escrever arquivos
-  --verbose                Log detalhado das transformações aplicadas
-  -v, --version            Versão da ferramenta
-  -h, --help               Ajuda
-
-Commands:
-  js-protect compile <input>  Compila para V8 bytecode (.jsc)
-  js-protect init             Cria js-protect.config.json no diretório atual
+  -c, --config <path>           Config JSON; flags explícitas têm precedência
+  --target <target>             browser | node
+  --module-format <format>      script | esm | commonjs
+  --seed <value>                Seed textual para build reproduzível
+  --source-map                  Emitir source map separado
+  --input-source-map <path>     Mapa anterior para composição; arquivo único
+  --include-sources-content     Opt-in para sourcesContent; nunca default
+  --report <path>               Override do relatório JSON
+  --help                        Ajuda
+  --version                     Versão
 ```
 
-### API programática (TypeScript)
+Regras:
+
+- `input`, config, source map e output são paths locais; URLs são inválidas.
+- `--input-source-map` só é aceito para input de arquivo na v1.
+- O destino deve ser inexistente e não pode estar dentro do input.
+- Diretórios são percorridos por paths reais; symlinks são rejeitados, não seguidos.
+- Arquivos que não terminam em `.js`, `.mjs` ou `.cjs` são ignorados e listados no relatório.
+- A CLI nunca baixa schema, engine, configuração ou atualização durante a execução.
+- O relatório é sempre escrito; por default usa `<out-dir>.js-protect-report.json`, fora do
+  staging. `--report` apenas substitui esse path.
+
+### API programática Node.js
 
 ```typescript
-export interface ObfuscateOptions {
-  /** Preset name or custom configuration */
-  preset?: 'low' | 'medium' | 'high' | 'maximum';
-  /** Target environment */
-  target?: 'node' | 'browser' | 'electron';
-  /** Specific transforms and their configs */
-  transforms?: TransformsConfig;
-  /** Generate source map */
-  sourceMap?: boolean;
-  /** Source map mode */
-  sourceMapMode?: 'inline' | 'separate';
-  /**
-   * Seed do gerador. Omitida/undefined → output polimórfico (aleatório por build, default).
-   * Valor fixo → build determinístico e reproduzível (debug, source maps estáveis, CI).
-   */
-  seed?: number;
-  /** Reserved identifier patterns (regex strings) */
-  reservedNames?: string[];
-  /** Reserved string patterns (regex strings) */
-  reservedStrings?: string[];
-  /** Compact output to single line */
-  compact?: boolean;
+export type ProtectionTarget = 'browser' | 'node';
+export type ModuleFormat = 'script' | 'esm' | 'commonjs';
+
+export interface ProtectOptions {
+  /** Logical input name, required for diagnostics and source maps. */
+  filename: string;
+  target: ProtectionTarget;
+  moduleFormat: ModuleFormat;
+  /** Omitted means a fresh random seed; effective value is always returned. */
+  seed?: string;
+  /** Exact identifiers that the selected pipeline must preserve. */
+  reservedIdentifiers?: string[];
+  sourceMap?: {
+    emit: boolean;
+    input?: string;
+    includeSourcesContent?: boolean;
+  };
 }
 
-export interface ObfuscateResult {
-  /** Obfuscated code string */
+export interface ProtectionMetadata {
+  toolVersion: string;
+  engineId: string;
+  engineVersion: string;
+  seedUsed: string;
+  inputHash: string;
+  outputHash: string;
+  configHash: string;
+  sourceMapHash?: string;
+  target: ProtectionTarget;
+  moduleFormat: ModuleFormat;
+  warnings: ProtectionWarning[];
+}
+
+export interface ProtectionWarning {
   code: string;
-  /** Source map (if enabled) */
+  message: string;
+  line?: number;
+  column?: number;
+}
+
+export interface ProtectResult {
+  code: string;
   sourceMap?: string;
-  /** Statistics about applied transforms */
-  stats: ObfuscateStats;
+  metadata: ProtectionMetadata;
 }
 
-export interface ObfuscateStats {
-  originalSize: number;
-  obfuscatedSize: number;
-  identifiersRenamed: number;
-  stringsEncrypted: number;
-  deadCodeBlocksInjected: number;
-  durationMs: number;
-  /** Seed efetivamente usada — registrar para reproduzir builds polimórficos */
-  seedUsed: number;
-}
-
-export function obfuscate(
-  sourceCode: string,
-  options?: ObfuscateOptions
-): Promise<ObfuscateResult>;
-
-export interface CompileOptions {
-  /** Output path */
-  output?: string;
-  /** Compress bytecode with Brotli */
-  compress?: boolean;
-}
-
-export function compileToBytecode(
-  sourceCode: string,
-  options?: CompileOptions
-): Promise<Buffer>;
+export function protect(sourceCode: string, options: ProtectOptions): Promise<ProtectResult>;
 ```
 
----
+Invariantes:
+
+- `filename` é nome lógico, não autorização para leitura/escrita pela API.
+- `sourceMap.input`, quando presente, deve ser JSON source map válido.
+- `reservedIdentifiers` aceita nomes exatos; regex externa não faz parte da v1.
+- `seedUsed` sempre existe, inclusive quando a seed foi gerada.
+- `warnings` nunca contém source, secrets detectados ou stack interna.
+- A API não lê arquivos, escreve output nem emite eventos globais.
 
 ## Data model
 
@@ -190,187 +262,266 @@ export function compileToBytecode(
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/.../js-protect/schemas/config.json",
-  "preset": "high",
   "target": "browser",
-  "transforms": {
-    "nameMangling": {
-      "enabled": true,
-      "generator": "hexadecimal"
-    },
-    "stringEncryption": {
-      "enabled": true,
-      "encoding": "base64",
-      "threshold": 0.8
-    },
-    "controlFlowFlattening": {
-      "enabled": true,
-      "threshold": 0.5
-    },
-    "deadCodeInjection": {
-      "enabled": false,
-      "threshold": 0.3
-    },
-    "selfDefending": {
-      "enabled": true
-    },
-    "debugProtection": {
-      "enabled": true,
-      "interval": 0
-    },
-    "domainLock": {
-      "enabled": false,
-      "domains": [],
-      "redirectUrl": "about:blank"
-    },
-    "numbersToExpressions": {
-      "enabled": true
-    },
-    "polymorphic": {
-      "enabled": true
-    }
-  },
-  "sourceMap": false,
-  "exclude": ["**/vendor/**", "**/*.test.js"],
-  "compact": true,
+  "moduleFormat": "esm",
   "seed": null,
-  "reservedNames": [],
-  "reservedStrings": []
+  "reservedIdentifiers": [],
+  "sourceMap": {
+    "emit": false,
+    "includeSourcesContent": false
+  }
 }
 ```
 
----
+Semântica:
+
+- `seed: null` equivale a seed omitida; a efetiva é gerada e reportada.
+- O config não escolhe engine, transform ou algoritmo interno.
+- Chaves desconhecidas são erro, não warning.
+- O schema é distribuído dentro do pacote; `$schema` remoto não é necessário para execução offline.
+
+### Build report
+
+```typescript
+export interface ProtectionBuildReport {
+  schemaVersion: 1;
+  status: 'succeeded' | 'failed';
+  startedAt: string;
+  completedAt: string;
+  toolVersion: string;
+  engineId: string;
+  engineVersion: string;
+  configHash: string;
+  files: Array<{
+    relativePath: string;
+    status: 'protected' | 'ignored' | 'failed';
+    metadata?: ProtectionMetadata;
+    error?: {
+      code: ProtectionErrorCode;
+      line?: number;
+      column?: number;
+    };
+  }>;
+}
+```
+
+O relatório não contém source code, source maps, paths absolutos ou mensagens internas de parser.
 
 ## Error handling
 
-| Cenário | Comportamento | Exit code |
-|---|---|---|
-| Arquivo de entrada não encontrado | `Error: Input file not found: <path>` | 1 |
-| JavaScript sintaticamente inválido | `ParseError: <file>:<line>:<col> — <message>` | 2 |
-| Arquivo maior que 50MB | `Error: File exceeds maximum size (50MB): <path>` | 3 |
-| Opção de config inválida | `ConfigError: Unknown option "foo". Did you mean "bar"?` | 4 |
-| Preset inválido | `Error: Unknown preset "ultra". Available: low, medium, high, maximum` | 5 |
-| Bytecode com Node.js incompatível | `BytecodeError: Compiled with Node v20.x, but running on Node v22.x` | 6 |
-| Wasm não carregado | `Error: WebAssembly runtime not available` | 7 |
-| Permissão negada ao escrever output | `Error: Cannot write to <path>: EACCES` | 8 |
-| Auto-defendendo detectou modificação (runtime) | Código lança erro interno com mensagem genérica (não revela que é self-defending) | N/A |
+```typescript
+export type ProtectionErrorCode =
+  | 'invalid_input'
+  | 'invalid_config'
+  | 'unsupported_syntax'
+  | 'semantic_hazard'
+  | 'source_map_invalid'
+  | 'source_map_composition_failed'
+  | 'protection_failed'
+  | 'output_conflict'
+  | 'resource_limit_exceeded'
+  | 'internal_error';
+```
 
-Todo erro no CLI é emitido em stderr com formato `js-protect: <type>: <message>`.
+| Código | Condição | CLI exit | Output publicado |
+|---|---|---:|---:|
+| `invalid_input` | Path ausente, extensão inválida, symlink ou combinação target/formato inválida | 2 | Não |
+| `invalid_config` | JSON/schema inválido ou chave desconhecida | 2 | Não |
+| `unsupported_syntax` | Parser não aceita feature ou arquivo inválido | 2 | Não |
+| `semantic_hazard` | Construção dinâmica sem preservação comprovada | 2 | Não |
+| `source_map_invalid` | Mapa de entrada inválido/incompatível | 2 | Não |
+| `source_map_composition_failed` | Não foi possível compor o mapa | 1 | Não |
+| `protection_failed` | Engine falha em transform/codegen | 1 | Não |
+| `output_conflict` | Destino existe ou está dentro do input | 2 | Não |
+| `resource_limit_exceeded` | Cancelamento, memória ou tamanho excede budget configurado | 1 | Não |
+| `internal_error` | Bug não classificado | 1 | Não |
 
----
+CLI escreve diagnóstico seguro em stderr no formato
+`js-protect: <code>: <relative-file>:<line>:<column>: <message>`. Stack e detalhes internos só ficam
+disponíveis em ambiente de desenvolvimento, nunca no relatório padrão.
+
+Para diretório, qualquer falha mantém o destino ausente. O relatório de falha pode ser escrito no
+path solicitado porque é diagnóstico, não artefato protegido.
 
 ## Observability
 
-| Sinal | Tipo | Descrição |
-|---|---|---|
-| `js_protect_obfuscation_duration_ms` | Métrica | Duração total da ofuscação por arquivo |
-| `js_protect_original_size_bytes` | Métrica | Tamanho original (por arquivo) |
-| `js_protect_obfuscated_size_bytes` | Métrica | Tamanho ofuscado (por arquivo) |
-| `js_protect_transforms_applied` | Métrica | Contador de transforms aplicados (por tipo) |
-| `js_protect_parse_errors` | Métrica | Contador de erros de parsing |
-| `--verbose` flag | Log textual | Detalhamento de cada transform aplicada por arquivo |
-| Stats retornados na API | Estruturado | `ObfuscateStats` com contadores e tamanhos |
-
-Métricas expostas como eventos via `process.emit('js-protect:stats', stats)` para integração com sistemas de monitoramento do usuário.
-
----
+- API retorna `ProtectionMetadata`; não emite `process.emit`, logs ou telemetria.
+- CLI gera opcionalmente `ProtectionBuildReport` e uma linha de status por arquivo em stderr.
+- Duração e tamanhos podem constar no relatório como diagnósticos, mas não são métricas globais nem
+  eventos do processo hospedeiro.
+- Nenhum sinal contém source, source map, path absoluto, configuração completa ou identificadores
+  reservados.
+- A ferramenta não possui telemetria remota na v1.
 
 ## Quality attributes
 
-| Atributo | Cenário | Resposta | Medida |
-|---|---|---|---|
-| Performance | Arquivo JS de 1MB com preset `high` em Node.js 20 | CLI conclui ofuscação | p95 < 2s em hardware moderno (M1/M2 ou equivalente x86) |
-| Performance | Arquivo JS de 10MB com preset `medium` | CLI conclui ofuscação | p95 < 10s |
-| Correctness | Código JS com 100% de cobertura de AST features ES2015-ES2022 | Output semanticamente equivalente ao input | Test suite com ≥ 95% de pass rate em corpus de projetos reais |
-| Size overhead | Preset `high` em arquivo de 100KB | Output não excede | 3x o tamanho original antes de GZIP |
-| Size overhead | Preset `medium` em arquivo de 100KB | Output não excede | 2x o tamanho original antes de GZIP |
-| Polimorfismo | Dois builds com seeds distintos do mesmo input de 100KB | Outputs divergentes, semântica preservada | < 5% de linhas idênticas e nenhum string array com layout compartilhado; 100% de equivalência semântica |
-| Determinismo | Dois builds com a mesma `seed` fixa | Output reproduzível | Byte-idêntico entre execuções |
+| Atributo | Condição | Resposta verificável |
+|---|---|---|
+| Correção | Qualquer caso da matriz suportada, em todas as seeds do gate | 100% de equivalência; qualquer divergência bloqueia release |
+| Determinismo | Mesmo input, config, seed, tool/engine version e runtime suportado | Código, mapa e metadata determinística byte-idênticos |
+| Aleatoriedade | Seed omitida em execuções independentes | Seeds efetivas distintas e outputs distintos após normalização, sem claim automática de proteção |
+| Offline | Execução CLI/API em ambiente sem rede | Todas as funções passam; nenhuma tentativa de conexão é observada |
+| Source map | Input map válido e emissão habilitada | Mapeamento composto validado por posições sentinela até a fonte anterior |
+| Falha atômica | Um arquivo falha durante processamento de diretório | Destino final permanece ausente; staging é removido |
+| Auditabilidade | Build concluído | Versões, hashes e seed permitem identificar exatamente o pipeline usado |
+| Proteção | POC adversarial aprovado | Resultado atende ao threshold registrado; sem POC conclusivo não há claim pública |
+| Performance | Corpus e hardware de release definidos | Budget será preenchido a partir de baseline antes do aceite desta spec |
+| Size/runtime overhead | Corpus representativo definido | Budgets serão preenchidos a partir do POC/calibração antes do aceite |
 
----
+Números de latência, tamanho e runtime permanecem deliberadamente abertos: inventá-los antes da
+medição repetiria o defeito da spec anterior.
+
+## Compatibility matrix
+
+A matriz final depende do parser/engine aceito, mas o contrato mínimo da v1 deve cobrir e testar:
+
+- escopo léxico, closures e shadowing;
+- functions, arrow functions, async/await e generators;
+- classes, private fields suportados pelo parser e herança;
+- exceptions, loops, switch e short-circuit;
+- object/array literals, destructuring, spread/rest e optional chaining;
+- `script`, ESM bundled e CommonJS bundled;
+- source map de bundler anterior;
+- direct `eval`, indirect `eval`, `with` e `Function.prototype.toString` como hazards explícitos;
+- código estrito e não estrito quando o formato permitir.
+
+Cada feature da matriz deve estar `supported`, `rejected` ou `not-applicable` por combinação de
+target/formato. Não existe estado implícito.
 
 ## Threat model
 
-### Ativos protegidos
-- Lógica de negócio proprietária em JavaScript (algoritmos, validações, regras)
-- Estrutura do código fonte (nomes de funções, fluxo de controle)
-- Strings sensíveis em código (mensagens, paths, valores de configuração não-secretos)
+### Ativos cuja recuperação se pretende dificultar
 
-### Ativos NÃO protegidos (fora de escopo)
-- Segredos (API keys, tokens, senhas) — nunca devem estar no frontend
-- Dados de usuário em runtime (memória do browser)
-- Integridade contra atacantes com acesso físico ao servidor
+- regras de negócio e branches presentes no bundle;
+- literais e estrutura necessários para compreender algoritmos;
+- mapeamento direto entre artefato distribuído e fonte anterior.
 
-### Vetores de ameaça
+### Ativos não protegidos
 
-| Ameaça | Técnica de mitigação |
+- secrets, tokens, endpoints públicos e dados presentes em runtime;
+- integridade/autenticidade do artefato em execução;
+- código revelado por source map entregue ao atacante;
+- lógica observável por chamadas de rede, UI ou instrumentação runtime;
+- disponibilidade contra código gerado com custo excessivo;
+- análise manual ilimitada ou adversário capaz de modificar o runtime.
+
+### Atores e vetores
+
+| Ameaça | Postura da v1 |
 |---|---|
-| Engenharia reversa via pretty-print + inspeção manual | Name mangling + control flow flattening + dead code injection |
-| Desofuscação automatizada (webcrack, de4js) | **Polimorfismo** (sem padrão estável entre builds para o desofuscador casar) como barreira principal; string encryption + números para expressões como camadas. Nota: self-defending apenas eleva custo marginal — não impede webcrack sozinho |
-| Debugging via Chrome DevTools / Node inspector | Debug protection (interval-based debugger statement injection) |
-| Cópia não autorizada do código para outro domínio | Domain lock — dissuasão **fraca**: bypassável removendo o check; não é barreira forte |
-| Tampering do código em runtime (monkey patching) | Self-defending + integrity checks |
-| Análise estática por LLMs (Claude, GPT) | **Polimorfismo** elimina padrões reconhecíveis entre builds (reduz eficácia de reconhecimento por LLM); camadas combinadas; V8 bytecode como opção forte para backend |
-| Extração de strings via análise estática | String array encryption + threshold parcial |
-
----
+| `webcrack`/normalizador automatizado | Medir por recovery tasks no POC; não confiar em formato conhecido |
+| LLM sobre um único build | Claim somente se protocolo local registrado produzir evidência |
+| Atacante conhece engine OSS | Assumido; segurança não depende de obscuridade do algoritmo |
+| Geração de múltiplos builds pelo atacante | Assumido; seed não é segredo |
+| Beautify e AST normalization | Métricas e POC operam depois de normalização |
+| Debug/instrumentação runtime | Fora da barreira forte; não prometer anti-debug |
+| Source map vazado | Default off, separado e sem `sourcesContent`; custódia é responsabilidade do usuário |
+| Input malicioso no build | Não executar input; limitar parser/codegen e rejeitar paths/symlinks |
+| Pacote/engine adulterado | Provenance, hashes e lockfile no release |
 
 ## Rollout / Rollback
 
-- **Distribuição**: publicação no npm sob semver. Mudança de comportamento de qualquer transform ou do formato de output é **breaking** (MAJOR), pois altera o artefato protegido de builds do usuário.
-- **V8 bytecode**: o acoplamento de versão do Node (assumption 4) é comunicado via `engines` no `package.json` e validado em runtime no load do `.jsc` (erro `BytecodeError`, exit code 6). Bump de major do Node alvo → nova major da ferramenta.
-- **Deprecação**: transforms ou flags removidas passam por um ciclo de major com aviso em `--verbose` e no CHANGELOG antes da remoção.
-- **Rollback do usuário**: pinar a versão anterior no `package.json` e re-rodar o build reproduz o output anterior desde que a `seed` seja fixa; builds polimórficos (sem seed) não são reproduzíveis entre versões — documentar que releases sensíveis devem fixar `seed`.
-
----
+- A v1 é publicada somente após POC conclusivo, ADR 001 `Accepted` e budgets preenchidos.
+- SemVer governa API, CLI, config, errors e schema do report; bytes ofuscados não são API estável.
+- Seed fixa garante reprodução somente com versão exata de tool, engine, config e runtime suportado.
+- Mudança no pipeline incrementa `engineVersion`; não exige MAJOR se contratos públicos e semântica
+  documentada permanecerem compatíveis.
+- Rollback usa versão e lockfile anteriores mais o manifest/report do build original.
+- Releases publicam checksums e provenance; a instalação pode ocorrer via rede, mas proteção e
+  builds continuam offline.
 
 ## Acceptance criteria
 
-1. **CLI funcional**: `js-protect src/ -o dist/ --preset high` processa todos os `.js` de `src/` e escreve em `dist/` com código ofuscado funcionalmente equivalente
-2. **API programática**: `import { obfuscate } from 'js-protect'` disponível como função assíncrona que aceita string e retorna `ObfuscateResult`
-3. **Presets**: `low`, `medium`, `high`, `maximum` pré-configurados e documentados com combinações de transforms adequadas
-4. **Config file**: `js-protect init` gera arquivo de configuração com schema; `js-protect -c config.json` lê e aplica
-5. **Transforms implementados**: name mangling, string encryption, control flow flattening, dead code injection, self-defending, debug protection, domain lock, numbers to expressions, **polymorphic** — todos funcionais e testados
-6. **Semântica preservada**: suite de testes de regressão com ≥ 50 arquivos JS de projetos open source reais, executada sobre **múltiplos seeds**; ≥ 95% passam em equivalência semântica em todos os seeds
-7. **Polimorfismo**: sem `seed`, dois builds do mesmo input produzem outputs estruturalmente distintos (< 5% de linhas idênticas, string arrays sem layout compartilhado) e semanticamente equivalentes; com `seed` fixa, o output é byte-idêntico entre execuções e a `seed` efetiva é reportada em `ObfuscateStats`
-8. **V8 bytecode**: `js-protect compile --bytecode` produz `.jsc` carregável via `require()` no Node.js mesma versão
-9. **Source maps**: `--source-map` (com `seed` fixa) gera source maps que mapeiam código ofuscado de volta ao original para debugging
-10. **Watch mode**: `--watch` re-ofusca arquivos quando modificados
-11. **Error handling**: todos os cenários da tabela de erros cobertos com mensagens claras e exit codes corretos
-12. **3 bundler plugins**: plugins para webpack, esbuild e vite publicados e funcionais com presets
-13. **Documentação**: README com quickstart, documentação de API, documentação de cada transform e suas opções
+1. **Gate arquitetural:** POC aprovado e ADR 001 em `Accepted`, com engine/pipeline escolhido por
+   dados, antes de qualquer Atomic Step do core.
+2. **Offline:** testes executam CLI/API com rede bloqueada e confirmam zero tentativa de conexão.
+3. **CLI arquivo:** comando mínimo protege `.js`, `.mjs` ou `.cjs` suportado e publica código mais
+   report semanticamente válido.
+4. **CLI diretório:** processa árvore sem symlinks via staging e só publica destino novo após sucesso
+   integral; qualquer falha deixa o destino ausente.
+5. **API:** `protect()` implementa exatamente o contrato desta spec, sem I/O, evento global ou
+   telemetria implícita.
+6. **Config parity:** CLI flags, config e `ProtectOptions` usam os mesmos nomes, tipos, defaults e
+   validações aplicáveis; chaves desconhecidas falham.
+7. **Semântica:** 100% dos casos `supported` na compatibility matrix preservam oracles em todas as
+   seeds do gate; uma divergência bloqueia release.
+8. **Hazards:** direct `eval`, `with` e `Function.prototype.toString` são detectados e rejeitados
+   quando o pipeline não possui prova específica de preservação.
+9. **Sintaxe:** toda combinação target/formato/feature possui estado explícito e teste positivo ou
+   negativo correspondente.
+10. **Seed:** omissão gera e retorna `seedUsed`; seed fixa reproduz código, mapa e metadata
+    determinística sob as condições declaradas.
+11. **Source maps:** emissão funciona com ou sem seed fixa; composição com mapa anterior é validada
+    por posições sentinela; output é separado e `sourcesContent` é opt-in.
+12. **Errors:** todos os `ProtectionErrorCode` têm fixture e comportamento CLI/API consistente;
+    nenhum erro publica output protegido parcial.
+13. **Report:** relatório contém paths relativos, hashes, versões, seed e status por arquivo, sem
+    source, mapa, path absoluto ou stack.
+14. **Proteção:** qualquer claim pública referencia o protocolo/resultado do POC e atende ao
+    threshold aprovado; diversidade estrutural isolada não satisfaz este AC.
+15. **Budgets:** performance, output size, runtime overhead e limites de recurso têm baseline,
+    ambiente, corpus e valores aprovados antes do aceite final desta spec.
+16. **Supply chain:** release inclui lockfile, checksums e provenance verificáveis para pacote e
+    engine distribuídos.
+17. **Documentação:** README descreve ativos protegidos/não protegidos, compatibility matrix,
+    hazards, source-map custody, reprodução e ausência de garantia de irreversibilidade.
 
----
+## Evidence anchors
+
+- [Benchmark corrigido](../benchmark-js-protection.md) — capacidades, evidência e lacunas do
+  mercado, atualizado em 2026-08-09.
+- [Spec do POC](js-protect-polymorphism-poc.md) — protocolo que valida eficácia e arquitetura.
+- [ADR 001](../adr/001-engine-propria-vs-orquestracao.md) — decisão arquitetural ainda `Proposed`.
+- [Node.js release lifecycle](https://nodejs.org/en/about/previous-releases) — linhas mantidas,
+  acesso em 2026-08-09.
+- [ECMAScript 2027: `eval`](https://tc39.es/ecma262/multipage/global-object.html#sec-eval-x),
+  [`with`](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-with-statement)
+  e [`Function.prototype.toString`](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-function.prototype.tostring),
+  acesso em 2026-08-09.
+- [TC39 Source Map specification](https://tc39.es/source-map-spec/), acesso em 2026-08-09.
 
 ## Open questions
 
-1. **Parser Rust**: `swc` (ecosystem SWC) vs `oxc` (ecosystem Oxc)? — swc é mais maduro, oxc é mais rápido. Fora do escopo do [ADR 001](../adr/001-engine-propria-vs-orquestracao.md). **Owner**: @andersonalves, **Deadline**: POC / ADR de parser
-2. **Wasm vs napi-rs**: confirmar se Wasm é suficiente para perf em arquivos grandes ou se precisamos de fallback nativo. **Owner**: @andersonalves, **Deadline**: POC
-3. **Licença**: MIT ou Apache 2.0? — MIT é mais comum no ecossistema JS. **Owner**: @andersonalves
-4. **Nome do pacote npm**: `js-protect` pode conflitar. Alternativas: `@js-protect/core`, `protect-js`? **Owner**: verificar disponibilidade no npm
-5. **V8 bytecode no Electron ≥ 42**: a compilação deve ocorrer no main process. A ferramenta deve spawnar um processo Electron? Ou documentar que o usuário deve rodar o comando dentro do contexto Electron? **Owner**: @andersonalves, **Deadline**: antes da spec do módulo Electron
-6. **Suporte a TypeScript como input direto?** Hoje a spec assume JS. Compilar TS via esbuild internamente antes de ofuscar é scope creep ou feature necessária? **Owner**: @andersonalves
+1. **Qual candidato vence o POC e qual `engineId` será aceito?** **Owner:** @andersonalves.
+   **Deadline:** relatório do POC / aceite do ADR 001.
+2. **Qual threshold adversarial sustenta a claim pública?** Deve ser congelado antes da matriz
+   oficial. **Owner:** @andersonalves. **Deadline:** antes dos Atomic Steps do POC.
+3. **Quais budgets de build time, tamanho e runtime overhead são aceitáveis?** Derivar do corpus e
+   hardware de release. **Owner:** @andersonalves. **Deadline:** antes do aceite desta spec.
+4. **Qual linha LTS mínima de Node será suportada no primeiro release?** Escolher entre linhas ainda
+   mantidas na data, considerando dependências do engine. **Owner:** release. **Deadline:** antes dos
+   Atomic Steps do core.
+5. **Quais private fields/propostas ECMAScript entram na primeira compatibility matrix?** Responder
+   a partir do parser aceito e corpus real. **Owner:** core. **Deadline:** antes do step de parser.
+6. **Licença e nome do pacote:** confirmar licença compatível com engine/fork aceito e
+   disponibilidade do nome. **Owner:** @andersonalves. **Deadline:** antes do release setup.
 
----
+## Traceability
+
+| Fonte atual | Acceptance criteria | Implementation plan |
+|---|---|---|
+| Gate arquitetural concluído fora do core | AC1 | POC plan 8–9; precondition dos steps do core |
+| Operação 100% offline | AC2, AC5 | 1, 2 |
+| CLI arquivo/diretório | AC3, AC4, AC12 | 4 |
+| API Node.js sem efeitos implícitos | AC5, AC6 | 1, 2 |
+| Semântica preservada e escopo explícito | AC7, AC8, AC9 | 2, 3, 5 |
+| Polimorfismo reproduzível sem proxy falso | AC10, AC14 | 2, 5 |
+| Source maps seguros e compostos | AC11, AC13 | 3, 4 |
+| Erros estáveis e falha fechada | AC4, AC8, AC12 | 1, 3, 4 |
+| Auditabilidade e reprodução | AC10, AC13 | 2, 4 |
+| Eficácia e budgets baseados em dados | AC14, AC15 | 5 |
+| Supply chain e documentação segura | AC16, AC17 | 6 |
 
 ## Implementation plan
 
-1. **Scaffolding do projeto**: monorepo com Rust crate + pacote npm TypeScript + configs de build
-2. **Parser + AST em Rust**: integração com swc/oxc para parsing de JavaScript como AST manipulável
-3. **Transform: name mangling**: renomear identificadores locais com nomes hex/mangled, preservando globais e reserved names
-4. **Transform: string encryption**: extrair strings para array + função de acesso com encoding base64
-5. **Transform: control flow flattening**: achatar estruturas de controle (if/while/for) em switch-case + dispatcher
-6. **Transform: dead code injection**: injetar blocos de código morto com predicações falsas no AST
-7. **Transform: self-defending + debug protection**: injetar código de runtime que detecta formatação e debugger
-8. **Transform: domain lock + numbers**: injetar verificação de domínio no topo; converter números para expressões equivalentes
-9. **Transform: polymorphic (flagship)**: PRNG seedado dirigindo escolhas de todas as transforms (nomes, layout do string array, ordem de blocos, variantes de expressão) — `seed` ausente = aleatório por build; `seed` fixa = reproduzível; expor `seedUsed`
-10. **Wasm bridge + API JS**: exportar função `obfuscate()` do Wasm via wasm-bindgen para o pacote npm
-11. **CLI em TypeScript**: comandos `js-protect` com clipanion/commander, config file, presets, watch mode, flag `--seed`
-12. **V8 bytecode compiler**: módulo que usa `vm.Script.createCachedData()` para gerar `.jsc` a partir de JS ofuscado
-13. **Bundler plugins**: plugins para webpack (Rspack compat), esbuild, e vite
-14. **Test suite**: testes unitários dos transforms Rust, testes de integração da API JS, smoke tests com projetos reais, equivalência semântica multi-seed
-15. **Documentação + CI**: README, API docs, exemplos, GitHub Actions para build/test/release
+1. **Congelar contratos públicos:** validar API, CLI, config, errors e report contra a engine aceita.
+2. **Entregar fatia API de arquivo:** proteção offline de um arquivo, seed/metadata e equivalência.
+3. **Adicionar compatibility/hazards/source maps:** matriz explícita, falha fechada e composição.
+4. **Adicionar CLI e diretório transacional:** paths seguros, staging, report e paridade com API.
+5. **Executar gates de correção/proteção/budgets:** corpus multi-seed, resultado adversarial e profiling.
+6. **Preparar release e documentação:** supply chain verificável, limitações e contrato público.
 
 ---
 
-> **Status:** Aguardando aprovação do usuário para avançar para ADR e Atomic Steps.
+> **Handoff bloqueado:** não criar Atomic Steps do core até o POC ser aprovado, o ADR 001 estar
+> `Accepted` e as Open questions 2–4 terem respostas registradas.

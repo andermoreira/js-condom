@@ -1,0 +1,486 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "official-2026-08-09",
+  "phase": "official",
+  "repositoryCommit": "b7be0574f4f4140c91536eca0bb1d0b5ffb27686",
+  "environment": {
+    "os": "Darwin 25.5.0",
+    "architecture": "arm64",
+    "cpu": "unknown",
+    "memoryBytes": 17179869184,
+    "nodeVersion": "v26.7.0"
+  },
+  "environmentCompatibility": {
+    "exactMatchFields": [
+      "os",
+      "architecture",
+      "nodeVersion"
+    ],
+    "informativeFields": [
+      "cpu",
+      "memoryBytes"
+    ]
+  },
+  "tools": [
+    {
+      "name": "javascript-obfuscator",
+      "version": "4.1.0",
+      "source": "npm",
+      "integrity": "sha512-ckC0VFKQ0/sFtLH9apW/ZLfsP8LuZqZhVEM4VTJ5KLzyLaodW6C1lTU8808eboDmddKyvd2uyRx5bzc0Me0GYg==",
+      "command": "npx javascript-obfuscator"
+    },
+    {
+      "name": "webcrack",
+      "version": "2.16.0",
+      "source": "npm",
+      "integrity": "sha512-sQx0otp+7W8MgOWjdpc+5dqGna1GRK4tx55SyRohtq4g4A1aXbqu0TLfqvIsY/PllBZgSfvV5h0nDE0iwC8gbA==",
+      "command": "npx webcrack"
+    },
+    {
+      "name": "acorn",
+      "version": "8.8.2",
+      "source": "npm",
+      "integrity": "sha512-xjIYgE8HBrkpd/sJqOGNspf8uHG+NOHGOw6a/Urj8taM2EXfdNAH2oFcPeIFfsv3+kz/mJrS5VuMqbNLjCa2vw==",
+      "command": "import acorn"
+    }
+  ],
+  "control": {
+    "id": "unprotected-control",
+    "artifactPolicy": "manifest-input"
+  },
+  "transformationSlice": {
+    "id": "structural-variant-v1",
+    "version": "1.0.0",
+    "appliesTo": [
+      "oss-extension",
+      "own-minimal"
+    ],
+    "inputStageId": "parsed-ast",
+    "eligibleNodeTypes": [
+      "FunctionDeclaration"
+    ],
+    "selectionPolicy": "uniform-random",
+    "variantPolicy": "seeded-variant",
+    "logicalParameters": {
+      "intensity": 1
+    },
+    "allowedAuxiliaryTransforms": [
+      "rename-identifiers"
+    ]
+  },
+  "candidates": [
+    {
+      "id": "oss-baseline",
+      "commit": "b7be0574f4f4140c91536eca0bb1d0b5ffb27686",
+      "config": {
+        "compact": true,
+        "controlFlowFlattening": false,
+        "deadCodeInjection": false,
+        "identifierNamesGenerator": "hexadecimal",
+        "renameGlobals": false,
+        "selfDefending": false,
+        "simplify": true,
+        "stringArray": true,
+        "stringArrayShuffle": true,
+        "target": "browser",
+        "unicodeEscapeSequence": false
+      },
+      "canonicalSeedProjection": "sha256-mod-2**31",
+      "inputStageId": "source-text",
+      "auxiliaryTransforms": [],
+      "sliceConformanceEvidenceIds": []
+    },
+    {
+      "id": "oss-extension",
+      "commit": "b7be0574f4f4140c91536eca0bb1d0b5ffb27686",
+      "config": {
+        "auxiliaryTransforms": [
+          "rename-identifiers"
+        ]
+      },
+      "canonicalSeedProjection": "sha256-mod-2**31",
+      "inputStageId": "parsed-ast",
+      "auxiliaryTransforms": [
+        "rename-identifiers"
+      ],
+      "sliceConformanceEvidenceIds": [
+        "structural-variant-v1/config",
+        "structural-variant-v1/artifact"
+      ]
+    },
+    {
+      "id": "own-minimal",
+      "commit": "b7be0574f4f4140c91536eca0bb1d0b5ffb27686",
+      "config": {
+        "auxiliaryTransforms": []
+      },
+      "canonicalSeedProjection": "sha256-mod-2**31",
+      "inputStageId": "parsed-ast",
+      "auxiliaryTransforms": [],
+      "sliceConformanceEvidenceIds": [
+        "structural-variant-v1/config",
+        "structural-variant-v1/artifact"
+      ]
+    }
+  ],
+  "corpus": [
+    {
+      "caseId": "official-closures-001",
+      "sourceHash": "sha256-2d38ad5b86a582682dfd59b3675a41224381c20fd116d5b2cb3c6a4e6b2b79de",
+      "category": "closures",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-closure-counter",
+      "recoveryTaskIds": [
+        "task-recover-exports",
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-closures-002",
+      "sourceHash": "sha256-3df9e865cee4c89c687b0abbca36293b8f57e36c8c6b8be9c189a13f54b53cef",
+      "category": "closures",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-closure-adder",
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-classes-001",
+      "sourceHash": "sha256-e8136e54399b5313873f154af25b59168d75d2e3a93e3c6b2417c6933052ab2d",
+      "category": "classes",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-class-point",
+      "recoveryTaskIds": [
+        "task-recover-exports",
+        "task-explain-behavior"
+      ]
+    },
+    {
+      "caseId": "official-classes-002",
+      "sourceHash": "sha256-119f7a7a489ae73a7366923d506e88e97498fa8f445032102fcade8ca1c02587",
+      "category": "classes",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-class-stack",
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-async-promises-001",
+      "sourceHash": "sha256-e3672d0992a143985315b37420c47572a8a4b1291ba64303b578b2fee8927295",
+      "category": "async-promises",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-async-delay",
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-async-promises-002",
+      "sourceHash": "sha256-f1b4b6770a9c9f77e5f849edbe9a3428d5cb270543c326526dbe7979710c0522",
+      "category": "async-promises",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-async-all",
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-generators-001",
+      "sourceHash": "sha256-c767ad6341b204d6ea5947913a57cfa6c9662dea0c0ac51a0bcab8818671e156",
+      "category": "generators",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-generator-range",
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-generators-002",
+      "sourceHash": "sha256-e5d46effe5f577a3f32b786f60f40a36dfbea2f032b61c7cf3e68749411a4ed3",
+      "category": "generators",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-generator-take",
+      "recoveryTaskIds": [
+        "task-explain-behavior"
+      ]
+    },
+    {
+      "caseId": "official-exceptions-001",
+      "sourceHash": "sha256-bdf66e50530ac50a5b0cd3cf77dba43d3ae091992792a19c4831d044ae84461b",
+      "category": "exceptions",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-exception-safe-parse",
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-exceptions-002",
+      "sourceHash": "sha256-3a750ea1ce2f9c980d679d1fe21f38cf7c22f13da6a23fdc24a5a7bee0fe6fd9",
+      "category": "exceptions",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-exception-assert",
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-modules-bundle-001",
+      "sourceHash": "sha256-7987c0e7087c3a8af9bbce068841942e89668e2536b0f7a7f8dde16489596ca4",
+      "category": "modules-bundle",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-module-constants",
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-modules-bundle-002",
+      "sourceHash": "sha256-4658b517422c3158225441b6a3957f8955a653aca057cef6805238bebd6545fd",
+      "category": "modules-bundle",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-module-reexport",
+      "recoveryTaskIds": [
+        "task-recover-exports",
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-strings-literals-001",
+      "sourceHash": "sha256-cf24528f1673195692d3462ba05b24163f29ba451e746804962824203674dc7b",
+      "category": "strings-literals",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-string-template",
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-strings-literals-002",
+      "sourceHash": "sha256-2d2bb0fdfb32782a4cf4058b24ba979f229ff116bb9dfc19f5dfb9a62000a74b",
+      "category": "strings-literals",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-string-quote",
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-control-flow-001",
+      "sourceHash": "sha256-1f10e45b957b14135fe9f28bb79aa2bfb667e93bb0be5b33edd9c94b32fdc052",
+      "category": "control-flow",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-control-fizzbuzz",
+      "recoveryTaskIds": [
+        "task-recover-control-flow",
+        "task-explain-behavior"
+      ]
+    },
+    {
+      "caseId": "official-control-flow-002",
+      "sourceHash": "sha256-b37f840304153d0c0ee26e2ad03621a40e6fd6c93682cbd2742459c1fbd5f560",
+      "category": "control-flow",
+      "partition": "official",
+      "expectedBehaviorId": "behavior-control-sum",
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-eval-001",
+      "sourceHash": "sha256-404e0f5c9e5a16a28831484271cf5ca0b591778fd971ecf8ab37f1d1ab9d66a8",
+      "category": "eval",
+      "partition": "official",
+      "expectedBehaviorId": "reject-before-protection",
+      "recoveryTaskIds": []
+    },
+    {
+      "caseId": "official-eval-002",
+      "sourceHash": "sha256-8312ba273a0a26a2bdc55fbb4dcb02ba1d1df98c7679c13adcafe6f3fa1d6f6e",
+      "category": "eval",
+      "partition": "official",
+      "expectedBehaviorId": "reject-before-protection",
+      "recoveryTaskIds": []
+    },
+    {
+      "caseId": "official-with-001",
+      "sourceHash": "sha256-21fb4de713fee19920b06b88f0def779b947fc2872afc53730cf818e0bca3c0f",
+      "category": "with",
+      "partition": "official",
+      "expectedBehaviorId": "reject-before-protection",
+      "recoveryTaskIds": []
+    },
+    {
+      "caseId": "official-with-002",
+      "sourceHash": "sha256-dc3e7b1f488c0aa335c88bd3e4f93aa9a328685257d9a30752f8c0a70eca319c",
+      "category": "with",
+      "partition": "official",
+      "expectedBehaviorId": "reject-before-protection",
+      "recoveryTaskIds": []
+    },
+    {
+      "caseId": "official-function-tostring-001",
+      "sourceHash": "sha256-5d6805ff5e01a122b3009bea88355c9d085c6d8a55f76b79576e210bd45801e3",
+      "category": "function-tostring",
+      "partition": "official",
+      "expectedBehaviorId": "reject-before-protection",
+      "recoveryTaskIds": []
+    },
+    {
+      "caseId": "official-function-tostring-002",
+      "sourceHash": "sha256-af8f613d1977f696273b96ff4c8bd3b13abdcd63e3e8afc67191deaf0275ea5c",
+      "category": "function-tostring",
+      "partition": "official",
+      "expectedBehaviorId": "reject-before-protection",
+      "recoveryTaskIds": []
+    }
+  ],
+  "recoveryTasks": [
+    {
+      "id": "task-recover-exports",
+      "objective": "Recover exported bindings with equivalent module behavior.",
+      "evaluatorIds": [
+        "eval-webcrack"
+      ],
+      "oracleId": "oracle-exports-recovered",
+      "budgetId": "budget-webcrack"
+    },
+    {
+      "id": "task-recover-control-flow",
+      "objective": "Recover control-flow structure sufficient to satisfy the case oracle.",
+      "evaluatorIds": [
+        "eval-webcrack",
+        "eval-ast-compare"
+      ],
+      "oracleId": "oracle-control-flow-recovered",
+      "budgetId": "budget-ast-compare"
+    },
+    {
+      "id": "task-explain-behavior",
+      "objective": "Produce a human-readable explanation and recovered source that matches the case oracle.",
+      "evaluatorIds": [
+        "eval-human-rubric"
+      ],
+      "oracleId": "oracle-behavior-human",
+      "budgetId": "budget-human-rubric"
+    }
+  ],
+  "evaluators": [
+    {
+      "id": "eval-webcrack",
+      "kind": "automated",
+      "toolName": "webcrack",
+      "oracleMode": "automated",
+      "determinism": "verified-deterministic"
+    },
+    {
+      "id": "eval-ast-compare",
+      "kind": "automated",
+      "toolName": "local-ast-diff",
+      "oracleMode": "automated",
+      "determinism": "verified-deterministic"
+    },
+    {
+      "id": "eval-human-rubric",
+      "kind": "human",
+      "oracleMode": "human-rubric",
+      "determinism": "variable"
+    }
+  ],
+  "budgets": {
+    "processTimeoutMs": 60000,
+    "memoryBytes": 536870912,
+    "recovery": [
+      {
+        "id": "budget-webcrack",
+        "evaluatorId": "eval-webcrack",
+        "wallClockMs": 30000,
+        "maxAttempts": 3,
+        "maxToolInvocations": 10
+      },
+      {
+        "id": "budget-ast-compare",
+        "evaluatorId": "eval-ast-compare",
+        "wallClockMs": 15000,
+        "maxAttempts": 2,
+        "maxToolInvocations": 5
+      },
+      {
+        "id": "budget-human-rubric",
+        "evaluatorId": "eval-human-rubric",
+        "wallClockMs": 600000,
+        "maxAttempts": 1,
+        "maxToolInvocations": 0
+      }
+    ],
+    "llm": {
+      "model": "llama3.2",
+      "version": "llama3.2",
+      "promptHash": "sha256-93b9ae809ed8e67445f2cb11eb920648f32187bfb690dd9bfdd0c80597967c43",
+      "contextHash": "sha256-d03fbc3e5fb8966c5d1e2702687419684fa82374eb9e7e5d9cb22b8e3e151257",
+      "parameters": {
+        "temperature": 0,
+        "num_predict": 2048
+      }
+    }
+  },
+  "seeds": [
+    "pilot-seed-1",
+    "pilot-seed-2",
+    "official-seed-3"
+  ],
+  "diversityMetrics": {
+    "token": {
+      "algorithm": "jaccard",
+      "version": "1",
+      "range": [
+        0,
+        1
+      ]
+    },
+    "ast": {
+      "algorithm": "tree-edit",
+      "version": "1",
+      "range": [
+        0,
+        1
+      ]
+    },
+    "comparisonPolicy": "all-seed-pairs-within-case-and-candidate"
+  },
+  "sampling": {
+    "minimumTotalCases": 22,
+    "minimumCasesPerCategory": {},
+    "seedsPerCase": 3,
+    "repetitionsByEvaluator": {
+      "eval-webcrack": 2,
+      "eval-ast-compare": 2,
+      "eval-human-rubric": 3
+    },
+    "aggregation": "paired-by-case-seed-task-evaluator",
+    "intervalMethod": "bootstrap-percentile"
+  },
+  "decisionRule": {
+    "primaryEndpoint": "completion-rate-within-budget",
+    "effect": "absolute-percentage-point-reduction-vs-oss-baseline",
+    "secondaryEndpoints": [
+      "cost-to-success"
+    ],
+    "threshold": {
+      "status": "frozen",
+      "minimumReductionPercentagePoints": 5
+    },
+    "materialityRule": "interval-lower-bound-meets-threshold",
+    "primaryTimeoutTreatment": "not-completed-within-budget",
+    "secondaryCostTimeoutTreatment": "right-censored-at-budget"
+  },
+  "blinding": {
+    "artifactLabelScheme": "random-opaque-id",
+    "randomizeEvaluationOrder": true,
+    "mappingArtifactHash": "sha256-730d5444035714e2d76101eca705587e3e068e4b69301fa77ddd47ab23e1d567",
+    "evaluatorViewHash": "sha256-a4f4949ed0e3164a541181bb8f5678576fab8281200ec9a596bbdf1d6f560bc7",
+    "revealAfterResultsLocked": true
+  }
+}

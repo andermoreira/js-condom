@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "partition": "pilot",
+  "oq2Decision": {
+    "owner": "@andersonalves",
+    "decidedAt": "2026-08-09",
+    "allowedOrigins": [
+      "synthetic",
+      "open-source-mit"
+    ],
+    "partitionsDisjoint": true,
+    "minimumTotalCases": 33,
+    "partitionPolicy": {
+      "pilot": {
+        "minimumTotalCases": 11,
+        "minimumCasesPerCategory": 1
+      },
+      "official": {
+        "minimumTotalCases": 22,
+        "minimumCasesPerCategory": 2
+      }
+    },
+    "minimumCasesPerCategory": {
+      "closures": 1,
+      "classes": 1,
+      "async-promises": 1,
+      "generators": 1,
+      "exceptions": 1,
+      "modules-bundle": 1,
+      "strings-literals": 1,
+      "control-flow": 1,
+      "eval": 1,
+      "with": 1,
+      "function-tostring": 1
+    }
+  },
+  "cases": [
+    {
+      "caseId": "pilot-closures-001",
+      "category": "closures",
+      "origin": "synthetic",
+      "source": "export function makeCounter(start = 0) {\n  let value = start;\n  return () => ++value;\n}\n",
+      "sourceHash": "sha256-2d38ad5b86a582682dfd59b3675a41224381c20fd116d5b2cb3c6a4e6b2b79de",
+      "supported": true,
+      "expectedBehaviorId": "behavior-closure-counter",
+      "semanticOracle": {
+        "id": "oracle-pilot-closures-001",
+        "mode": "automated",
+        "description": "Calling makeCounter(1) twice returns 2 then 3."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports",
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "pilot-classes-001",
+      "category": "classes",
+      "origin": "synthetic",
+      "source": "export class Point {\n  constructor(x, y) {\n    this.x = x;\n    this.y = y;\n  }\n  move(dx, dy) {\n    return new Point(this.x + dx, this.y + dy);\n  }\n}\n",
+      "sourceHash": "sha256-e8136e54399b5313873f154af25b59168d75d2e3a93e3c6b2417c6933052ab2d",
+      "supported": true,
+      "expectedBehaviorId": "behavior-class-point",
+      "semanticOracle": {
+        "id": "oracle-pilot-classes-001",
+        "mode": "automated",
+        "description": "new Point(1,2).move(3,4) yields Point(4,6)."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports",
+        "task-explain-behavior"
+      ]
+    },
+    {
+      "caseId": "pilot-async-promises-001",
+      "category": "async-promises",
+      "origin": "synthetic",
+      "source": "export async function delay(ms) {\n  return new Promise((resolve) => setTimeout(resolve, ms));\n}\n",
+      "sourceHash": "sha256-e3672d0992a143985315b37420c47572a8a4b1291ba64303b578b2fee8927295",
+      "supported": true,
+      "expectedBehaviorId": "behavior-async-delay",
+      "semanticOracle": {
+        "id": "oracle-pilot-async-promises-001",
+        "mode": "automated",
+        "description": "delay resolves after the requested timeout."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "pilot-generators-001",
+      "category": "generators",
+      "origin": "synthetic",
+      "source": "export function* range(start, end) {\n  for (let i = start; i < end; i += 1) yield i;\n}\n",
+      "sourceHash": "sha256-c767ad6341b204d6ea5947913a57cfa6c9662dea0c0ac51a0bcab8818671e156",
+      "supported": true,
+      "expectedBehaviorId": "behavior-generator-range",
+      "semanticOracle": {
+        "id": "oracle-pilot-generators-001",
+        "mode": "automated",
+        "description": "range(1,4) yields 1,2,3."
+      },
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "pilot-exceptions-001",
+      "category": "exceptions",
+      "origin": "synthetic",
+      "source": "export function safeParse(json) {\n  try {\n    return { ok: true, value: JSON.parse(json) };\n  } catch (error) {\n    return { ok: false, message: error.message };\n  }\n}\n",
+      "sourceHash": "sha256-bdf66e50530ac50a5b0cd3cf77dba43d3ae091992792a19c4831d044ae84461b",
+      "supported": true,
+      "expectedBehaviorId": "behavior-exception-safe-parse",
+      "semanticOracle": {
+        "id": "oracle-pilot-exceptions-001",
+        "mode": "automated",
+        "description": "Invalid JSON returns ok:false without throwing."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "pilot-modules-bundle-001",
+      "category": "modules-bundle",
+      "origin": "synthetic",
+      "source": "export const API_VERSION = 1;\nexport function isEnabled(flag) {\n  return flag === \"on\";\n}\n",
+      "sourceHash": "sha256-7987c0e7087c3a8af9bbce068841942e89668e2536b0f7a7f8dde16489596ca4",
+      "supported": true,
+      "expectedBehaviorId": "behavior-module-constants",
+      "semanticOracle": {
+        "id": "oracle-pilot-modules-bundle-001",
+        "mode": "automated",
+        "description": "Exports API_VERSION and isEnabled behave as declared."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "pilot-strings-literals-001",
+      "category": "strings-literals",
+      "origin": "synthetic",
+      "source": "export function greet(name) {\n  return `hello ${name.toUpperCase()}`;\n}\n",
+      "sourceHash": "sha256-cf24528f1673195692d3462ba05b24163f29ba451e746804962824203674dc7b",
+      "supported": true,
+      "expectedBehaviorId": "behavior-string-template",
+      "semanticOracle": {
+        "id": "oracle-pilot-strings-literals-001",
+        "mode": "automated",
+        "description": "greet(\"ada\") returns hello ADA."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "pilot-control-flow-001",
+      "category": "control-flow",
+      "origin": "synthetic",
+      "source": "export function fizzbuzz(n) {\n  if (n % 15 === 0) return \"fizzbuzz\";\n  if (n % 3 === 0) return \"fizz\";\n  if (n % 5 === 0) return \"buzz\";\n  return String(n);\n}\n",
+      "sourceHash": "sha256-1f10e45b957b14135fe9f28bb79aa2bfb667e93bb0be5b33edd9c94b32fdc052",
+      "supported": true,
+      "expectedBehaviorId": "behavior-control-fizzbuzz",
+      "semanticOracle": {
+        "id": "oracle-pilot-control-flow-001",
+        "mode": "automated",
+        "description": "fizzbuzz follows modulo branching rules."
+      },
+      "recoveryTaskIds": [
+        "task-recover-control-flow",
+        "task-explain-behavior"
+      ]
+    },
+    {
+      "caseId": "pilot-eval-001",
+      "category": "eval",
+      "origin": "synthetic",
+      "source": "export function runDynamic(expression) {\n  return eval(expression);\n}\n",
+      "sourceHash": "sha256-404e0f5c9e5a16a28831484271cf5ca0b591778fd971ecf8ab37f1d1ab9d66a8",
+      "supported": false,
+      "exclusionJustification": "Direct eval is outside the supported v1 matrix; the case records the expected rejection policy.",
+      "expectedPolicy": {
+        "kind": "semantic-hazard",
+        "hazard": "direct-eval",
+        "expectedOutcome": "reject-before-protection"
+      }
+    },
+    {
+      "caseId": "pilot-with-001",
+      "category": "with",
+      "origin": "synthetic",
+      "source": "export function readLength(obj) {\n  with (obj) {\n    return length;\n  }\n}\n",
+      "sourceHash": "sha256-21fb4de713fee19920b06b88f0def779b947fc2872afc53730cf818e0bca3c0f",
+      "supported": false,
+      "exclusionJustification": "with alters lexical scope resolution and is unsupported in v1.",
+      "expectedPolicy": {
+        "kind": "semantic-hazard",
+        "hazard": "with-statement",
+        "expectedOutcome": "reject-before-protection"
+      }
+    },
+    {
+      "caseId": "pilot-function-tostring-001",
+      "category": "function-tostring",
+      "origin": "synthetic",
+      "source": "export function dependsOnToString(fn) {\n  return fn.toString().includes(\"return value\");\n}\n",
+      "sourceHash": "sha256-5d6805ff5e01a122b3009bea88355c9d085c6d8a55f76b79576e210bd45801e3",
+      "supported": false,
+      "exclusionJustification": "Behavior depends on Function.prototype.toString output, which is not preserved by the supported matrix.",
+      "expectedPolicy": {
+        "kind": "semantic-hazard",
+        "hazard": "function-prototype-tostring",
+        "expectedOutcome": "reject-before-protection"
+      }
+    }
+  ]
+}

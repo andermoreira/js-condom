@@ -1,0 +1,399 @@
+{
+  "schemaVersion": 1,
+  "partition": "official",
+  "oq2Decision": {
+    "owner": "@andersonalves",
+    "decidedAt": "2026-08-09",
+    "allowedOrigins": [
+      "synthetic",
+      "open-source-mit"
+    ],
+    "partitionsDisjoint": true,
+    "minimumTotalCases": 33,
+    "partitionPolicy": {
+      "pilot": {
+        "minimumTotalCases": 11,
+        "minimumCasesPerCategory": 1
+      },
+      "official": {
+        "minimumTotalCases": 22,
+        "minimumCasesPerCategory": 2
+      }
+    },
+    "minimumCasesPerCategory": {
+      "closures": 1,
+      "classes": 1,
+      "async-promises": 1,
+      "generators": 1,
+      "exceptions": 1,
+      "modules-bundle": 1,
+      "strings-literals": 1,
+      "control-flow": 1,
+      "eval": 1,
+      "with": 1,
+      "function-tostring": 1
+    }
+  },
+  "cases": [
+    {
+      "caseId": "official-closures-001",
+      "category": "closures",
+      "origin": "synthetic",
+      "source": "export function makeCounter(start = 0) {\n  let value = start;\n  return () => ++value;\n}\n",
+      "sourceHash": "sha256-2d38ad5b86a582682dfd59b3675a41224381c20fd116d5b2cb3c6a4e6b2b79de",
+      "supported": true,
+      "expectedBehaviorId": "behavior-closure-counter",
+      "semanticOracle": {
+        "id": "oracle-official-closures-001",
+        "mode": "automated",
+        "description": "Calling makeCounter(1) twice returns 2 then 3."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports",
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-closures-002",
+      "category": "closures",
+      "origin": "synthetic",
+      "source": "export function makeAdder(base) {\n  return (delta) => base + delta;\n}\n",
+      "sourceHash": "sha256-3df9e865cee4c89c687b0abbca36293b8f57e36c8c6b8be9c189a13f54b53cef",
+      "supported": true,
+      "expectedBehaviorId": "behavior-closure-adder",
+      "semanticOracle": {
+        "id": "oracle-official-closures-002",
+        "mode": "automated",
+        "description": "makeAdder(5)(3) returns 8."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-classes-001",
+      "category": "classes",
+      "origin": "synthetic",
+      "source": "export class Point {\n  constructor(x, y) {\n    this.x = x;\n    this.y = y;\n  }\n  move(dx, dy) {\n    return new Point(this.x + dx, this.y + dy);\n  }\n}\n",
+      "sourceHash": "sha256-e8136e54399b5313873f154af25b59168d75d2e3a93e3c6b2417c6933052ab2d",
+      "supported": true,
+      "expectedBehaviorId": "behavior-class-point",
+      "semanticOracle": {
+        "id": "oracle-official-classes-001",
+        "mode": "automated",
+        "description": "new Point(1,2).move(3,4) yields Point(4,6)."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports",
+        "task-explain-behavior"
+      ]
+    },
+    {
+      "caseId": "official-classes-002",
+      "category": "classes",
+      "origin": "synthetic",
+      "source": "export class Stack {\n  #items = [];\n  push(value) { this.#items.push(value); }\n  pop() { return this.#items.pop(); }\n}\n",
+      "sourceHash": "sha256-119f7a7a489ae73a7366923d506e88e97498fa8f445032102fcade8ca1c02587",
+      "supported": true,
+      "expectedBehaviorId": "behavior-class-stack",
+      "semanticOracle": {
+        "id": "oracle-official-classes-002",
+        "mode": "automated",
+        "description": "Stack push/pop preserves LIFO order."
+      },
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-async-promises-001",
+      "category": "async-promises",
+      "origin": "synthetic",
+      "source": "export async function delay(ms) {\n  return new Promise((resolve) => setTimeout(resolve, ms));\n}\n",
+      "sourceHash": "sha256-e3672d0992a143985315b37420c47572a8a4b1291ba64303b578b2fee8927295",
+      "supported": true,
+      "expectedBehaviorId": "behavior-async-delay",
+      "semanticOracle": {
+        "id": "oracle-official-async-promises-001",
+        "mode": "automated",
+        "description": "delay resolves after the requested timeout."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-async-promises-002",
+      "category": "async-promises",
+      "origin": "synthetic",
+      "source": "export async function allValues(values) {\n  return Promise.all(values);\n}\n",
+      "sourceHash": "sha256-f1b4b6770a9c9f77e5f849edbe9a3428d5cb270543c326526dbe7979710c0522",
+      "supported": true,
+      "expectedBehaviorId": "behavior-async-all",
+      "semanticOracle": {
+        "id": "oracle-official-async-promises-002",
+        "mode": "automated",
+        "description": "allValues resolves to the input array order."
+      },
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-generators-001",
+      "category": "generators",
+      "origin": "synthetic",
+      "source": "export function* range(start, end) {\n  for (let i = start; i < end; i += 1) yield i;\n}\n",
+      "sourceHash": "sha256-c767ad6341b204d6ea5947913a57cfa6c9662dea0c0ac51a0bcab8818671e156",
+      "supported": true,
+      "expectedBehaviorId": "behavior-generator-range",
+      "semanticOracle": {
+        "id": "oracle-official-generators-001",
+        "mode": "automated",
+        "description": "range(1,4) yields 1,2,3."
+      },
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-generators-002",
+      "category": "generators",
+      "origin": "synthetic",
+      "source": "export function* take(iterable, count) {\n  let seen = 0;\n  for (const value of iterable) {\n    if (seen >= count) return;\n    seen += 1;\n    yield value;\n  }\n}\n",
+      "sourceHash": "sha256-e5d46effe5f577a3f32b786f60f40a36dfbea2f032b61c7cf3e68749411a4ed3",
+      "supported": true,
+      "expectedBehaviorId": "behavior-generator-take",
+      "semanticOracle": {
+        "id": "oracle-official-generators-002",
+        "mode": "automated",
+        "description": "take stops after count items."
+      },
+      "recoveryTaskIds": [
+        "task-explain-behavior"
+      ]
+    },
+    {
+      "caseId": "official-exceptions-001",
+      "category": "exceptions",
+      "origin": "synthetic",
+      "source": "export function safeParse(json) {\n  try {\n    return { ok: true, value: JSON.parse(json) };\n  } catch (error) {\n    return { ok: false, message: error.message };\n  }\n}\n",
+      "sourceHash": "sha256-bdf66e50530ac50a5b0cd3cf77dba43d3ae091992792a19c4831d044ae84461b",
+      "supported": true,
+      "expectedBehaviorId": "behavior-exception-safe-parse",
+      "semanticOracle": {
+        "id": "oracle-official-exceptions-001",
+        "mode": "automated",
+        "description": "Invalid JSON returns ok:false without throwing."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-exceptions-002",
+      "category": "exceptions",
+      "origin": "synthetic",
+      "source": "export function assertPositive(value) {\n  if (value <= 0) throw new Error(\"positive required\");\n  return value;\n}\n",
+      "sourceHash": "sha256-3a750ea1ce2f9c980d679d1fe21f38cf7c22f13da6a23fdc24a5a7bee0fe6fd9",
+      "supported": true,
+      "expectedBehaviorId": "behavior-exception-assert",
+      "semanticOracle": {
+        "id": "oracle-official-exceptions-002",
+        "mode": "automated",
+        "description": "Non-positive input throws Error with stable message."
+      },
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-modules-bundle-001",
+      "category": "modules-bundle",
+      "origin": "synthetic",
+      "source": "export const API_VERSION = 1;\nexport function isEnabled(flag) {\n  return flag === \"on\";\n}\n",
+      "sourceHash": "sha256-7987c0e7087c3a8af9bbce068841942e89668e2536b0f7a7f8dde16489596ca4",
+      "supported": true,
+      "expectedBehaviorId": "behavior-module-constants",
+      "semanticOracle": {
+        "id": "oracle-official-modules-bundle-001",
+        "mode": "automated",
+        "description": "Exports API_VERSION and isEnabled behave as declared."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-modules-bundle-002",
+      "category": "modules-bundle",
+      "origin": "synthetic",
+      "source": "const internal = { mode: \"bundle\" };\nexport function getMode() {\n  return internal.mode;\n}\n",
+      "sourceHash": "sha256-4658b517422c3158225441b6a3957f8955a653aca057cef6805238bebd6545fd",
+      "supported": true,
+      "expectedBehaviorId": "behavior-module-reexport",
+      "semanticOracle": {
+        "id": "oracle-official-modules-bundle-002",
+        "mode": "automated",
+        "description": "getMode returns bundle."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports",
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-strings-literals-001",
+      "category": "strings-literals",
+      "origin": "synthetic",
+      "source": "export function greet(name) {\n  return `hello ${name.toUpperCase()}`;\n}\n",
+      "sourceHash": "sha256-cf24528f1673195692d3462ba05b24163f29ba451e746804962824203674dc7b",
+      "supported": true,
+      "expectedBehaviorId": "behavior-string-template",
+      "semanticOracle": {
+        "id": "oracle-official-strings-literals-001",
+        "mode": "automated",
+        "description": "greet(\"ada\") returns hello ADA."
+      },
+      "recoveryTaskIds": [
+        "task-recover-exports"
+      ]
+    },
+    {
+      "caseId": "official-strings-literals-002",
+      "category": "strings-literals",
+      "origin": "synthetic",
+      "source": "export function quote(parts) {\n  return parts.map((part) => `\"${part}\"`).join(\",\");\n}\n",
+      "sourceHash": "sha256-2d2bb0fdfb32782a4cf4058b24ba979f229ff116bb9dfc19f5dfb9a62000a74b",
+      "supported": true,
+      "expectedBehaviorId": "behavior-string-quote",
+      "semanticOracle": {
+        "id": "oracle-official-strings-literals-002",
+        "mode": "automated",
+        "description": "quote([\"a\",\"b\"]) returns \"a\",\"b\"."
+      },
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-control-flow-001",
+      "category": "control-flow",
+      "origin": "synthetic",
+      "source": "export function fizzbuzz(n) {\n  if (n % 15 === 0) return \"fizzbuzz\";\n  if (n % 3 === 0) return \"fizz\";\n  if (n % 5 === 0) return \"buzz\";\n  return String(n);\n}\n",
+      "sourceHash": "sha256-1f10e45b957b14135fe9f28bb79aa2bfb667e93bb0be5b33edd9c94b32fdc052",
+      "supported": true,
+      "expectedBehaviorId": "behavior-control-fizzbuzz",
+      "semanticOracle": {
+        "id": "oracle-official-control-flow-001",
+        "mode": "automated",
+        "description": "fizzbuzz follows modulo branching rules."
+      },
+      "recoveryTaskIds": [
+        "task-recover-control-flow",
+        "task-explain-behavior"
+      ]
+    },
+    {
+      "caseId": "official-control-flow-002",
+      "category": "control-flow",
+      "origin": "synthetic",
+      "source": "export function sumUntil(limit) {\n  let total = 0;\n  for (let i = 1; i <= limit; i += 1) total += i;\n  return total;\n}\n",
+      "sourceHash": "sha256-b37f840304153d0c0ee26e2ad03621a40e6fd6c93682cbd2742459c1fbd5f560",
+      "supported": true,
+      "expectedBehaviorId": "behavior-control-sum",
+      "semanticOracle": {
+        "id": "oracle-official-control-flow-002",
+        "mode": "automated",
+        "description": "sumUntil(4) returns 10."
+      },
+      "recoveryTaskIds": [
+        "task-recover-control-flow"
+      ]
+    },
+    {
+      "caseId": "official-eval-001",
+      "category": "eval",
+      "origin": "synthetic",
+      "source": "export function runDynamic(expression) {\n  return eval(expression);\n}\n",
+      "sourceHash": "sha256-404e0f5c9e5a16a28831484271cf5ca0b591778fd971ecf8ab37f1d1ab9d66a8",
+      "supported": false,
+      "exclusionJustification": "Direct eval is outside the supported v1 matrix; the case records the expected rejection policy.",
+      "expectedPolicy": {
+        "kind": "semantic-hazard",
+        "hazard": "direct-eval",
+        "expectedOutcome": "reject-before-protection"
+      }
+    },
+    {
+      "caseId": "official-eval-002",
+      "category": "eval",
+      "origin": "synthetic",
+      "source": "const indirect = eval;\nexport function runIndirect(expression) {\n  return indirect(expression);\n}\n",
+      "sourceHash": "sha256-8312ba273a0a26a2bdc55fbb4dcb02ba1d1df98c7679c13adcafe6f3fa1d6f6e",
+      "supported": false,
+      "exclusionJustification": "Indirect eval is treated as a semantic hazard and remains unsupported in v1.",
+      "expectedPolicy": {
+        "kind": "semantic-hazard",
+        "hazard": "indirect-eval",
+        "expectedOutcome": "reject-before-protection"
+      }
+    },
+    {
+      "caseId": "official-with-001",
+      "category": "with",
+      "origin": "synthetic",
+      "source": "export function readLength(obj) {\n  with (obj) {\n    return length;\n  }\n}\n",
+      "sourceHash": "sha256-21fb4de713fee19920b06b88f0def779b947fc2872afc53730cf818e0bca3c0f",
+      "supported": false,
+      "exclusionJustification": "with alters lexical scope resolution and is unsupported in v1.",
+      "expectedPolicy": {
+        "kind": "semantic-hazard",
+        "hazard": "with-statement",
+        "expectedOutcome": "reject-before-protection"
+      }
+    },
+    {
+      "caseId": "official-with-002",
+      "category": "with",
+      "origin": "synthetic",
+      "source": "export function nestedWith(outer, inner) {\n  with (outer) {\n    with (inner) {\n      return value;\n    }\n  }\n}\n",
+      "sourceHash": "sha256-dc3e7b1f488c0aa335c88bd3e4f93aa9a328685257d9a30752f8c0a70eca319c",
+      "supported": false,
+      "exclusionJustification": "Nested with blocks are documented as unsupported hazards.",
+      "expectedPolicy": {
+        "kind": "semantic-hazard",
+        "hazard": "with-statement",
+        "expectedOutcome": "reject-before-protection"
+      }
+    },
+    {
+      "caseId": "official-function-tostring-001",
+      "category": "function-tostring",
+      "origin": "synthetic",
+      "source": "export function dependsOnToString(fn) {\n  return fn.toString().includes(\"return value\");\n}\n",
+      "sourceHash": "sha256-5d6805ff5e01a122b3009bea88355c9d085c6d8a55f76b79576e210bd45801e3",
+      "supported": false,
+      "exclusionJustification": "Behavior depends on Function.prototype.toString output, which is not preserved by the supported matrix.",
+      "expectedPolicy": {
+        "kind": "semantic-hazard",
+        "hazard": "function-prototype-tostring",
+        "expectedOutcome": "reject-before-protection"
+      }
+    },
+    {
+      "caseId": "official-function-tostring-002",
+      "category": "function-tostring",
+      "origin": "synthetic",
+      "source": "export function requiresName(fn, expected) {\n  return fn.name === expected;\n}\n",
+      "sourceHash": "sha256-af8f613d1977f696273b96ff4c8bd3b13abdcd63e3e8afc67191deaf0275ea5c",
+      "supported": false,
+      "exclusionJustification": "Behavior depends on function name metadata exposed via toString/name.",
+      "expectedPolicy": {
+        "kind": "semantic-hazard",
+        "hazard": "function-name-metadata",
+        "expectedOutcome": "reject-before-protection"
+      }
+    }
+  ]
+}

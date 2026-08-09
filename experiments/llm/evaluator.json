@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "oq4Decision": {
+    "status": "approved",
+    "decidedBy": "andersonalves",
+    "decidedAt": "2026-08-09",
+    "summary": "Ollama local runtime approved for blind anti-LLM evaluation"
+  },
+  "runtime": {
+    "kind": "ollama",
+    "clientPackage": "ollama",
+    "clientVersion": "0.6.3",
+    "host": "http://127.0.0.1:11434",
+    "model": "llama3.2",
+    "modelVersion": "llama3.2",
+    "parameters": {
+      "temperature": 0,
+      "num_predict": 2048
+    }
+  },
+  "prompt": {
+    "template": "You are evaluating a blind JavaScript recovery task.\n\nObjective:\n{{objective}}\n\nObfuscated artifact:\n{{artifact}}\n\nReturn only recovered JavaScript source inside a single fenced code block. Do not include explanations.",
+    "contextPolicy": {
+      "allowedSources": ["blind-artifact", "task-objective", "predefined-rubric"],
+      "forbiddenFields": ["subjectId", "seed", "engine", "toolName", "candidate"]
+    }
+  },
+  "rubric": {
+    "criteria": [
+      "Recovered code is syntactically valid JavaScript.",
+      "Recovered code reproduces the case oracle outcome without relying on hidden runtime state.",
+      "No candidate, seed, or engine label influenced the judgment."
+    ]
+  },
+  "hashes": {
+    "promptHash": "sha256-93b9ae809ed8e67445f2cb11eb920648f32187bfb690dd9bfdd0c80597967c43",
+    "contextHash": "sha256-d03fbc3e5fb8966c5d1e2702687419684fa82374eb9e7e5d9cb22b8e3e151257"
+  },
+  "availability": {
+    "status": "requires-local-daemon",
+    "probeCommand": "ollama list"
+  }
+}

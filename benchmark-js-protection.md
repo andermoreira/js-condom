@@ -1,10 +1,11 @@
 # Benchmark de proteção JS/TS — discovery corrigido
 
-> **Status:** Discovery ativo, corrigido em 2026-08-09
+> **Status:** POC oficial executado em 2026-08-09; benchmark atualizado com evidência medida. Não
+> aprova arquitetura — conclusão `evidencia-insuficiente`.
 >
-> **Objetivo:** registrar capacidades documentadas, evidência disponível e lacunas que o
-> [POC comparativo de polimorfismo](specs/js-condom-polymorphism-poc.md) deve resolver. Este
-> documento não aprova arquitetura.
+> **Objetivo:** registrar capacidades documentadas, evidência disponível e lacunas. A matriz oficial
+> do [POC comparativo de polimorfismo](specs/js-condom-polymorphism-poc.md) foi executada; este
+> documento reflete os resultados sem extrapolar a evidência.
 
 ## 1. Método e níveis de evidência
 
@@ -94,23 +95,23 @@ Portanto, são incorretas as claims absolutas de que o free:
 - não consegue produzir output diferente entre builds;
 - não expõe qualquer controle de seed ou randomização.
 
-### 3.2 O que continua não demonstrado
+### 3.2 O que a matriz oficial mediu
 
-O termo “polimorfismo” é usado comercialmente para propriedades mais fortes do que trocar nomes e
-embaralhar arrays. Obfuscator.io Pro afirma gerar opcodes e estrutura de VM únicos por build;
-Jscrambler afirma produzir outputs únicos e resistentes a reconhecimento automatizado/LLM.
+A matriz oficial (`official-2026-08-09`) comparou `oss-baseline`, `oss-extension` e `own-minimal`
+sob protocolo congelado. Conclusão AC17: `evidencia-insuficiente`.
 
-`[VENDOR CLAIM: páginas oficiais dos fornecedores, acesso em 2026-08-09]`
+- Candidatos customizados **não superaram** o baseline no endpoint primário (taxa de conclusão
+  adversarial maior: baseline 35,29%; `oss-extension` 82,35%; `own-minimal` 88,24%).
+- 39 células de candidato falharam validação semântica; conclusão global insuficiente para produto.
+- Dimensão anti-LLM inconclusiva (avaliador não integrado à matriz oficial).
 
-Não há, neste repositório, experimento que demonstre que:
+Claims que permanecem `[UNVERIFIED]` ou não demonstradas:
 
-- diversidade do free aumenta materialmente o custo de reversão;
-- variantes adicionais em fork superam o free;
-- uma engine própria supera fork/extensão;
+- diversidade estrutural isolada sustenta polimorfismo defensivo como diferencial de produto;
 - output único derrota análise de um único artefato por LLM;
 - similaridade textual ou estrutural prediz tempo do atacante.
 
-Todas essas claims permanecem `[UNVERIFIED]` até o POC.
+Fonte: [`experiments/official/report.md`](experiments/official/report.md).
 
 ### 3.3 Definição operacional para o projeto
 
@@ -185,11 +186,12 @@ function obfuscation, domain/date locks e detecção de alterações.
 
 `[VERIFIED: repositório oficial do js-confuser, acesso em 2026-08-09]`
 
-Não há resultado adversarial reproduzível deste projeto comparando `js-confuser` ao
-`javascript-obfuscator`; eficácia relativa permanece `[UNVERIFIED]`. Ele não entra como quarto
-candidato no POC inicial para preservar a comparação mínima já definida, mas o relatório final
-deve justificar por que o baseline escolhido representa melhor a ameaça ou recomendar uma rodada
-adicional. Ignorá-lo sem justificativa deixaria a análise de alternativas incompleta.
+Não há resultado adversarial reproduzível comparando `js-confuser` ao `javascript-obfuscator` neste
+repositório; eficácia relativa permanece `[UNVERIFIED]`. **OQ8 resolvida:** `javascript-obfuscator`
+foi aceito como baseline OSS suficiente para a matriz mínima; `js-confuser` foi excluído do POC
+inicial com justificativa publicada no relatório oficial (transforms AST, seed configurável,
+integridade npm no manifest). Comparação direta com `js-confuser` não é pré-requisito para a
+decisão atual; qualquer comparação exige rodada separadamente aprovada.
 
 PreEmptive JSDefender documenta um produto comercial de proteção JavaScript. Claims de força,
 anti-tamper e resistência pertencem ao fornecedor e não foram medidas neste repositório.
@@ -202,11 +204,11 @@ Ele não é candidato de implementação da v1 open source; permanece referênci
 
 | Alternativa | Offline | Output variável documentado | Bytecode | Eficácia medida neste repo | Papel atual |
 |---|---:|---:|---:|---:|---|
-| `javascript-obfuscator` free | Sim | Sim, PRNG/seed e opções aleatórias | Não | Não | Baseline obrigatório |
-| `js-confuser` | Sim | Opções/transforms documentadas; variabilidade a medir | Não | Não | Alternativa OSS excluída do POC inicial com justificativa pendente |
-| Fork/extensão OSS | Sim | A implementar no POC | Não | Não | Candidato recomendado |
-| Engine própria mínima TS | Sim | A implementar no POC | Não | Não | Candidato comparativo |
-| Engine própria Rust/Wasm | Sim em tese | A implementar | Não por si só | Não | Consideração futura condicionada |
+| `javascript-obfuscator` free | Sim | Sim, PRNG/seed e opções aleatórias | Não | Sim — matriz oficial; conclusão insuficiente para produto | Baseline obrigatório |
+| `js-confuser` | Sim | Opções/transforms documentadas; variabilidade a medir | Não | Não | Alternativa OSS; excluída do POC inicial com justificativa publicada (OQ8 resolvida) |
+| Fork/extensão OSS | Sim | Medido no POC | Não | Sim — sem ganho adversarial; 39 falhas semânticas | Não selecionada |
+| Engine própria mínima TS | Sim | Medido no POC | Não | Sim — sem ganho adversarial; mesmas limitações | Não selecionada |
+| Engine própria Rust/Wasm | Sim em tese | Não medido | Não por si só | Não | Consideração futura condicionada |
 | Bytenode | Sim | Não é objetivo primário | V8 cached data + loader | Não para resistência | Adapter futuro Node/Electron |
 | Obfuscator.io Pro | Não, segundo tabela oficial | Sim, VM/opcodes | VM customizada | Não | Fora da restrição offline |
 | Jscrambler | Oferta comercial | Vendor claim | Técnicas proprietárias | Não | Referência de mercado, não baseline técnico |
@@ -236,24 +238,34 @@ performance, compatibilidade ou distribuição já foram comprovadas.
 
 ## 7. Direção recomendada
 
-### Fase atual — evidência
+### POC concluído
 
-Executar a spec [`js-condom-polymorphism-poc.md`](specs/js-condom-polymorphism-poc.md):
+A matriz oficial (`official-2026-08-09`) foi executada. Artefatos:
 
-1. `javascript-obfuscator` free como baseline real, incluindo sua randomização nativa;
-2. fork/extensão mínima como hipótese de menor complexidade;
-3. transform própria mínima sobre parser existente;
-4. 100% de equivalência semântica no subconjunto suportado;
-5. recuperação medida por tarefas predefinidas, não aparência ou linhas;
-6. relatório reproduzível antes de aceitar arquitetura.
+- [`experiments/official/manifest.json`](experiments/official/manifest.json)
+- [`experiments/official/report.md`](experiments/official/report.md)
+- [`experiments/official/results.json`](experiments/official/results.json)
+- [`experiments/official/blinding-map.json`](experiments/official/blinding-map.json)
 
-### Depois do POC
+Conclusão AC17: `evidencia-insuficiente`. Relatório aprovado por @andersonalves em 2026-08-09.
 
-- Se o fork/extensão atender ao threshold aprovado, adotá-lo na v1.
-- Se apenas engine própria demonstrar ganho suficiente, aceitar sua complexidade em ADR atualizado.
-- Se nenhuma alternativa demonstrar ganho, reformular a promessa de polimorfismo em vez de
-  reimplementar transforms commodity.
+### Depois do POC — estado atual
+
+- Fork/extensão **não** atende threshold: candidatos piores que baseline no endpoint primário;
+  evidência insuficiente; 39 falhas de validação semântica.
+- Engine própria mínima **não** justificada por dados atuais: mesma limitação.
+- Nenhuma alternativa demonstra ganho adversarial suficiente → **reformular promessa de polimorfismo**
+  é o caminho aplicável se nova rodada também falhar.
+- ADR 001 permanece `Proposed`; spec do core bloqueada.
 - Tratar Bytenode em spec separada; não usá-lo para decidir arquitetura frontend.
+
+### Próximos passos (não implementação do core)
+
+1. Corrigir 39 falhas de validação semântica nos candidatos.
+2. Implementar `eval-ast-compare` e `eval-human-rubric` no harness de recovery.
+3. Alinhar hashes de blinding entre manifest oficial e matriz.
+4. Integrar avaliador LLM ou manter dimensão explicitamente inconclusiva em nova rodada.
+5. Decidir entre nova matriz oficial ou reformulação do Goal do produto.
 
 ## 8. O que este benchmark não conclui
 
@@ -262,7 +274,7 @@ Executar a spec [`js-condom-polymorphism-poc.md`](specs/js-condom-polymorphism-p
 - Não conclui que free, fork ou engine própria resistem a um atacante white-box.
 - Não conclui que Bytenode é portável entre arquiteturas sem teste.
 - Não conclui que ausência de decompilador público torna bytecode irreversível.
-- Não autoriza implementação do core antes do POC e do ADR aceito.
+- Não autoriza implementação do core: ADR 001 `Proposed`, conclusão `evidencia-insuficiente`.
 
 ## 9. Fontes primárias consultadas
 
@@ -276,16 +288,20 @@ Todas acessadas em 2026-08-09:
 - [Bytenode — loader, compatibilidade e limitações](https://github.com/bytenode/bytenode)
 - [Jscrambler — claims de proteção polimórfica e LLM](https://jscrambler.com/llm-resilient-code-protection/)
 - [PreEmptive JSDefender — claims de produto](https://www.preemptive.com/products/jsdefender/)
+- [Relatório oficial do POC](experiments/official/report.md) — matriz `official-2026-08-09`
+- [Resultados completos](experiments/official/results.json)
+- [Manifest oficial](experiments/official/manifest.json)
+- [Mapa de blinding](experiments/official/blinding-map.json)
 
-## 10. Lacunas a fechar pelo POC
+## 10. Lacunas — estado após matriz oficial
 
-| Claim | Estado atual | Evidência necessária |
+| Claim | Estado atual | Evidência / próximo passo |
 |---|---|---|
-| As oito transforms free são revertidas em segundos | `[DISCOVERY INPUT]` | Corpus, versões, comandos, artefatos e tempos |
-| Diversidade nativa do free não basta | `[UNVERIFIED]` | Baseline adversarial sob recovery tasks |
-| Fork acrescenta resistência material | `[UNVERIFIED]` | Comparação célula a célula contra baseline |
-| Engine própria supera fork | `[UNVERIFIED]` | Mesma fatia funcional, corpus, seeds e budgets |
-| `javascript-obfuscator` representa melhor baseline OSS que `js-confuser` | `[UNVERIFIED]` | Justificativa no relatório ou rodada adicional |
-| Polimorfismo reduz sucesso de LLM | `[UNVERIFIED]` | Modelo/version/prompt/budget/repetições registrados |
+| As oito transforms free são revertidas em segundos | `[DISCOVERY INPUT]` | Corpus, versões, comandos, artefatos e tempos ainda não registrados neste repo |
+| Diversidade nativa do free não basta | Evidência parcial — candidatos custom não superaram baseline no endpoint primário; conclusão global insuficiente | Nova matriz após correções semânticas |
+| Fork acrescenta resistência material | Não demonstrado — 39 falhas semânticas; taxa de conclusão adversarial superior ao baseline | Corrigir validação semântica; reexecutar |
+| Engine própria supera fork | Não demonstrado — mesma limitação | Corrigir validação semântica; reexecutar |
+| `javascript-obfuscator` representa melhor baseline OSS que `js-confuser` | **Resolvida (OQ8)** — obfuscator suficiente como baseline nesta rodada; justificativa publicada | Comparação direta exige rodada separada se necessário |
+| Polimorfismo reduz sucesso de LLM | Inconclusivo — dimensão não integrada à matriz oficial | Integrar avaliador ou declarar N/A em nova rodada |
 | Rust/Wasm atende performance de arquivos grandes | `[UNVERIFIED]` | Benchmark após necessidade arquitetural demonstrada |
 | `.jsc` funciona entre x86 e ARM | `[CONFLICT]` | Matriz de compilação/execução por runtime e arquitetura |

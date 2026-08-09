@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://js-protect.local/protocol/experiment-manifest.schema.json",
+  "title": "ExperimentManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "experimentId",
+    "phase",
+    "repositoryCommit",
+    "environment",
+    "environmentCompatibility",
+    "tools",
+    "control",
+    "transformationSlice",
+    "candidates",
+    "corpus",
+    "recoveryTasks",
+    "evaluators",
+    "seeds",
+    "diversityMetrics",
+    "sampling",
+    "decisionRule",
+    "blinding",
+    "budgets"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "experimentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["pilot", "official"]
+    },
+    "repositoryCommit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "architecture", "cpu", "memoryBytes", "nodeVersion"],
+      "properties": {
+        "os": { "type": "string", "minLength": 1 },
+        "architecture": { "type": "string", "minLength": 1 },
+        "cpu": { "type": "string", "minLength": 1 },
+        "memoryBytes": { "type": "number", "minimum": 0 },
+        "nodeVersion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "environmentCompatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exactMatchFields", "informativeFields"],
+      "properties": {
+        "exactMatchFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["os", "architecture", "cpu", "memoryBytes", "nodeVersion"]
+          }
+        },
+        "informativeFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["os", "architecture", "cpu", "memoryBytes", "nodeVersion"]
+          }
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "version", "source", "integrity", "command"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "version": { "type": "string", "minLength": 1 },
+          "source": { "type": "string", "minLength": 1 },
+          "integrity": { "type": "string", "minLength": 1 },
+          "command": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "artifactPolicy"],
+      "properties": {
+        "id": { "const": "unprotected-control" },
+        "artifactPolicy": { "type": "string", "minLength": 1 }
+      }
+    },
+    "transformationSlice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "appliesTo",
+        "inputStageId",
+        "eligibleNodeTypes",
+        "selectionPolicy",
+        "variantPolicy",
+        "logicalParameters",
+        "allowedAuxiliaryTransforms"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "appliesTo": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["oss-extension", "own-minimal"]
+          }
+        },
+        "inputStageId": { "type": "string", "minLength": 1 },
+        "eligibleNodeTypes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "selectionPolicy": { "type": "string", "minLength": 1 },
+        "variantPolicy": { "type": "string", "minLength": 1 },
+        "logicalParameters": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "allowedAuxiliaryTransforms": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "commit",
+          "config",
+          "canonicalSeedProjection",
+          "inputStageId",
+          "auxiliaryTransforms",
+          "sliceConformanceEvidenceIds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": ["oss-baseline", "oss-extension", "own-minimal"]
+          },
+          "commit": { "type": "string", "minLength": 1 },
+          "config": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "canonicalSeedProjection": { "type": "string", "minLength": 1 },
+          "inputStageId": { "type": "string", "minLength": 1 },
+          "auxiliaryTransforms": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "sliceConformanceEvidenceIds": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "corpus": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "caseId",
+          "sourceHash",
+          "category",
+          "partition",
+          "expectedBehaviorId",
+          "recoveryTaskIds"
+        ],
+        "properties": {
+          "caseId": { "type": "string", "minLength": 1 },
+          "sourceHash": { "type": "string", "minLength": 1 },
+          "category": { "type": "string", "minLength": 1 },
+          "partition": {
+            "type": "string",
+            "enum": ["pilot", "official"]
+          },
+          "expectedBehaviorId": { "type": "string", "minLength": 1 },
+          "recoveryTaskIds": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "recoveryTasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "objective", "evaluatorIds", "oracleId", "budgetId"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "objective": { "type": "string", "minLength": 1 },
+          "evaluatorIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "oracleId": { "type": "string", "minLength": 1 },
+          "budgetId": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "evaluators": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "oracleMode", "determinism"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": {
+            "type": "string",
+            "enum": ["automated", "llm", "human"]
+          },
+          "toolName": { "type": "string" },
+          "oracleMode": {
+            "type": "string",
+            "enum": ["automated", "human-rubric"]
+          },
+          "determinism": {
+            "type": "string",
+            "enum": ["verified-deterministic", "variable"]
+          }
+        }
+      }
+    },
+    "seeds": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "diversityMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token", "ast", "comparisonPolicy"],
+      "properties": {
+        "token": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "version", "range"],
+          "properties": {
+            "algorithm": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "range": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "type": "number" }
+            }
+          }
+        },
+        "ast": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "version", "range"],
+          "properties": {
+            "algorithm": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "range": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "type": "number" }
+            }
+          }
+        },
+        "comparisonPolicy": {
+          "const": "all-seed-pairs-within-case-and-candidate"
+        }
+      }
+    },
+    "sampling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimumTotalCases",
+        "minimumCasesPerCategory",
+        "seedsPerCase",
+        "repetitionsByEvaluator",
+        "aggregation",
+        "intervalMethod"
+      ],
+      "properties": {
+        "minimumTotalCases": { "type": "number", "minimum": 1 },
+        "minimumCasesPerCategory": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        },
+        "seedsPerCase": { "type": "number", "minimum": 1 },
+        "repetitionsByEvaluator": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 1 }
+        },
+        "aggregation": {
+          "const": "paired-by-case-seed-task-evaluator"
+        },
+        "intervalMethod": { "type": "string", "minLength": 1 }
+      }
+    },
+    "decisionRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primaryEndpoint",
+        "effect",
+        "secondaryEndpoints",
+        "threshold",
+        "materialityRule",
+        "primaryTimeoutTreatment",
+        "secondaryCostTimeoutTreatment"
+      ],
+      "properties": {
+        "primaryEndpoint": {
+          "const": "completion-rate-within-budget"
+        },
+        "effect": {
+          "const": "absolute-percentage-point-reduction-vs-oss-baseline"
+        },
+        "secondaryEndpoints": {
+          "type": "array",
+          "contains": { "const": "cost-to-success" },
+          "items": { "type": "string" }
+        },
+        "threshold": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status"],
+              "properties": {
+                "status": { "const": "pending-pilot" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "minimumReductionPercentagePoints"],
+              "properties": {
+                "status": { "const": "frozen" },
+                "minimumReductionPercentagePoints": { "type": "number" }
+              }
+            }
+          ]
+        },
+        "materialityRule": {
+          "const": "interval-lower-bound-meets-threshold"
+        },
+        "primaryTimeoutTreatment": {
+          "const": "not-completed-within-budget"
+        },
+        "secondaryCostTimeoutTreatment": {
+          "const": "right-censored-at-budget"
+        }
+      }
+    },
+    "blinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactLabelScheme",
+        "randomizeEvaluationOrder",
+        "mappingArtifactHash",
+        "evaluatorViewHash",
+        "revealAfterResultsLocked"
+      ],
+      "properties": {
+        "artifactLabelScheme": {
+          "const": "random-opaque-id"
+        },
+        "randomizeEvaluationOrder": { "const": true },
+        "mappingArtifactHash": { "type": "string", "minLength": 1 },
+        "evaluatorViewHash": { "type": "string", "minLength": 1 },
+        "revealAfterResultsLocked": { "const": true }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["processTimeoutMs", "memoryBytes", "recovery"],
+      "properties": {
+        "processTimeoutMs": { "type": "number", "minimum": 1 },
+        "memoryBytes": { "type": "number", "minimum": 1 },
+        "recovery": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "evaluatorId",
+              "wallClockMs",
+              "maxAttempts",
+              "maxToolInvocations"
+            ],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "evaluatorId": { "type": "string", "minLength": 1 },
+              "wallClockMs": { "type": "number", "minimum": 1 },
+              "maxAttempts": { "type": "number", "minimum": 1 },
+              "maxToolInvocations": { "type": "number", "minimum": 0 },
+              "maxPrompts": { "type": "number", "minimum": 0 },
+              "maxTotalTokens": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "llm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "version", "promptHash", "contextHash", "parameters"],
+          "properties": {
+            "model": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "promptHash": { "type": "string", "minLength": 1 },
+            "contextHash": { "type": "string", "minLength": 1 },
+            "parameters": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

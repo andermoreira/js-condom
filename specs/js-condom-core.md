@@ -1,8 +1,7 @@
 # Spec: `js-condom` core v1
 
-> **Status:** Draft — bloqueada pelo
-> [POC comparativo de polimorfismo](js-condom-polymorphism-poc.md) e pelo aceite do
-> [ADR 001](../adr/001-engine-propria-vs-orquestracao.md). Não autoriza Atomic Steps.
+> **Status:** Draft — POC oficial concluído com conclusão `evidencia-insuficiente`; ADR 001
+> permanece `Proposed`. Não autoriza Atomic Steps.
 
 ## Goal
 
@@ -138,8 +137,9 @@ sem output parcial.
 5. Seed não é segredo e pode constar do relatório de build.
 6. O pipeline selecionado no ADR terá identificador e versão próprios para reprodução.
 7. Código fora da matriz suportada falha fechado; a v1 não oferece modo `unsafe`.
-8. O POC pode invalidar a promessa de proteção; nesse caso Goal e escopo devem ser revistos antes
-   do aceite desta spec.
+8. O POC oficial concluiu com `evidencia-insuficiente`: não aprovou threshold nem `engineId`, e não
+   sustenta claim pública de polimorfismo defensivo. Goal e escopo devem ser revistos se nova rodada
+   também não produzir ganho adversarial.
 
 ## Risks
 
@@ -432,8 +432,9 @@ target/formato. Não existe estado implícito.
 
 ## Acceptance criteria
 
-1. **Gate arquitetural:** POC aprovado e ADR 001 em `Accepted`, com engine/pipeline escolhido por
-   dados, antes de qualquer Atomic Step do core.
+1. **Gate arquitetural:** POC executado; ADR 001 em `Accepted` com engine/pipeline escolhido por
+   dados conclusivos favoráveis, antes de qualquer Atomic Step do core. Estado atual: POC concluído
+   com `evidencia-insuficiente`; ADR 001 `Proposed`; `engineId` indefinido.
 2. **Offline:** testes executam CLI/API com rede bloqueada e confirmam zero tentativa de conexão.
 3. **CLI arquivo:** comando mínimo protege `.js`, `.mjs` ou `.cjs` suportado e publica código mais
    report semanticamente válido.
@@ -471,7 +472,10 @@ target/formato. Não existe estado implícito.
 - [Benchmark corrigido](../benchmark-js-protection.md) — capacidades, evidência e lacunas do
   mercado, atualizado em 2026-08-09.
 - [Spec do POC](js-condom-polymorphism-poc.md) — protocolo que valida eficácia e arquitetura.
-- [ADR 001](../adr/001-engine-propria-vs-orquestracao.md) — decisão arquitetural ainda `Proposed`.
+- [ADR 001](../adr/001-engine-propria-vs-orquestracao.md) — decisão arquitetural `Proposed`; POC
+  oficial com `evidencia-insuficiente`.
+- [Relatório oficial do POC](../experiments/official/report.md) — matriz `official-2026-08-09`.
+- [Resultados completos](../experiments/official/results.json) — trials e agregados auditáveis.
 - [Node.js release lifecycle](https://nodejs.org/en/about/previous-releases) — linhas mantidas,
   acesso em 2026-08-09.
 - [ECMAScript 2027: `eval`](https://tc39.es/ecma262/multipage/global-object.html#sec-eval-x),
@@ -482,8 +486,10 @@ target/formato. Não existe estado implícito.
 
 ## Open questions
 
-1. **Qual candidato vence o POC e qual `engineId` será aceito?** **Owner:** @andersonalves.
-   **Deadline:** relatório do POC / aceite do ADR 001.
+1. **Qual candidato vence o POC e qual `engineId` será aceito?** POC oficial sem vencedor;
+   conclusão `evidencia-insuficiente`; `engineId` indefinido. Próximo movimento: replanejamento
+   (correção semântica, evaluators faltantes, possível nova matriz) ou reformulação do Goal.
+   **Owner:** @andersonalves. **Status:** aberta após matriz oficial.
 2. **Qual threshold adversarial sustenta a claim pública?** O endpoint primário é a redução da taxa
    de conclusão dentro do budget contra `oss-baseline`; o valor numérico deve ser calibrado no
    piloto e congelado antes da matriz oficial. **Owner:** @andersonalves. **Deadline:** fim do
@@ -525,5 +531,7 @@ target/formato. Não existe estado implícito.
 
 ---
 
-> **Handoff bloqueado:** não criar Atomic Steps do core até o POC ser aprovado, o ADR 001 estar
-> `Accepted` e as Open questions 2–4 terem respostas registradas.
+> **Handoff bloqueado:** POC oficial executado com `evidencia-insuficiente`; ADR 001 permanece
+> `Proposed`. Não criar Atomic Steps do core até o ADR 001 estar `Accepted` com conclusão favorável
+> e as Open questions 2–4 ter respostas registradas. Próximo trabalho: corrigir validação semântica
+> dos candidatos, implementar evaluators faltantes e reavaliar protocolo — não implementação do core.

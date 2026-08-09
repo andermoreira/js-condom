@@ -61,6 +61,9 @@ secundário e o código não protegido como controle de validade.
   budget em relação a `oss-baseline`; custo até o sucesso é endpoint secundário.
 - O valor numérico do threshold é calibrado no piloto e congelado antes da matriz oficial; o piloto
   não pode trocar endpoints nem a direção do efeito.
+- Para reprodução exata neste POC, `os`, `architecture` e `nodeVersion` são campos de igualdade
+  obrigatória; `cpu` e `memoryBytes` são informativos e podem variar, desde que a execução respeite
+  os budgets congelados.
 
 ### Considerações futuras
 
@@ -195,6 +198,28 @@ Fonte única da configuração de uma execução:
 ```typescript
 type CandidateId = 'oss-baseline' | 'oss-extension' | 'own-minimal';
 type EvaluationSubjectId = 'unprotected-control' | CandidateId;
+
+interface EmbeddedArtifact {
+  sha256: string;
+  mediaType: 'application/javascript' | 'application/json' | 'text/plain';
+  encoding: 'utf8';
+  content: string;
+}
+
+interface StructuredLogEntry {
+  timestamp: string;
+  experimentId: string;
+  caseId: string;
+  subjectId: EvaluationSubjectId;
+  seed: string | null;
+  taskId?: string;
+  evaluatorId?: string;
+  trial?: number;
+  stage: string;
+  durationMs?: number;
+  status: string;
+  message: string;
+}
 
 interface ExperimentManifest {
   schemaVersion: 1;
@@ -343,7 +368,7 @@ interface RecoveryTrialResult {
     inputTokens?: number;
     outputTokens?: number;
   };
-  recoveredArtifactHash?: string;
+  recoveredArtifact?: EmbeddedArtifact;
   diagnostics: string[];
 }
 
@@ -371,15 +396,17 @@ interface CaseResult {
     inputBytes: number;
     outputBytes: number;
   };
-  artifactHashes: Record<string, string>;
+  artifacts: Record<string, EmbeddedArtifact>;
+  logs: StructuredLogEntry[];
 }
 ```
 
 Invariantes:
 
 - resultado `valid` exige `semantic.equivalent === true`;
-- `environmentCompatibility.exactMatchFields` e `informativeFields` são disjuntos e, juntos,
-  classificam todos os campos de `environment`;
+- `environmentCompatibility.exactMatchFields` contém exatamente `os`, `architecture` e
+  `nodeVersion`; `informativeFields` contém exatamente `cpu` e `memoryBytes`; os conjuntos são
+  disjuntos e classificam todos os campos de `environment`;
 - `transformationSlice.appliesTo` contém exatamente `oss-extension` e `own-minimal`; ambos têm o
   mesmo `inputStageId`, e suas transforms auxiliares são subconjunto da allowlist da fatia;
 - `sampling.seedsPerCase` corresponde à quantidade de seeds canônicas e cada
@@ -400,7 +427,11 @@ Invariantes:
   `activeWorkMs`, e LLM registra prompts e tokens quando o runtime os disponibiliza;
 - tempo, tentativas, invocações, prompts e tokens são agregados separadamente, sem score composto
   implícito;
-- resultado sem hash do input, output e configuração não entra no relatório consolidado;
+- resultado sem conteúdo autocontido e hash verificável do input, output e configuração não entra
+  no relatório consolidado; o hash de cada `EmbeddedArtifact` deve corresponder ao seu `content`;
+- `experiments/pilot/run.json` e `experiments/official/results.json` incorporam os artefatos de
+  texto e logs estruturados necessários à auditoria; a execução não cria arquivos persistentes
+  adicionais fora dos cinco paths declarados pelos steps correspondentes;
 - métricas agregadas sempre preservam todos os trials individuais para auditoria, inclusive
   repetições divergentes.
 
@@ -428,12 +459,16 @@ Nenhum erro pode remover silenciosamente um caso ou seed do denominador.
 ## Observability
 
 - Cada execução gera manifest resolvido, logs estruturados locais e um `CaseResult` por célula da
-  matriz.
+  matriz; no piloto, esses registros e artefatos de texto ficam incorporados em `run.json`, e na
+  matriz oficial ficam incorporados em `results.json`.
 - Logs internos incluem `experimentId`, `caseId`, `subjectId`, `seed`, `taskId`, `evaluatorId`,
   `trial`, etapa, duração e status; a visão entregue ao avaliador contém apenas `blindArtifactId`.
 - Código-fonte e respostas completas do corpus não são enviados a telemetria ou rede.
 - O relatório Markdown é derivado dos resultados JSON; números agregados devem apontar para os
   registros individuais que os compõem.
+- `run.json` e `results.json` são autocontidos: preservam conteúdo UTF-8 e SHA-256 de inputs,
+  outputs, configurações e artefatos recuperados, além dos logs, sem referências a arquivos
+  persistentes adicionais.
 - Erros, timeouts, tasks inválidas, censuras e exclusões aparecem como séries próprias, nunca
   agregados a “não recuperado”.
 - O relatório apresenta separadamente conclusão dentro do budget, wall-clock, tempo ativo humano,
@@ -596,8 +631,11 @@ preservados como registro da decisão.
 6. **Quantas seeds e repetições por evaluator distinguem efeito material de ruído?** Definir no
    piloto também método de intervalo, ordem de agregação e política para evaluator variável.
    **Owner:** POC. **Deadline:** fim do piloto, antes da matriz oficial.
-7. **Quais campos definem ambiente compatível para reprodução exata?** Congelar campos de igualdade
-   obrigatória e campos apenas informativos no manifest. **Owner:** POC. **Deadline:** protocolo.
+7. **Resolvida — quais campos definem ambiente compatível para reprodução exata?** `os`,
+   `architecture` e `nodeVersion` exigem igualdade; `cpu` e `memoryBytes` são informativos e podem
+   variar quando os budgets congelados forem respeitados. A distinção evita atribuir à reprodução
+   diferenças de runtime potencialmente causadas por plataforma ou versão do Node, sem exigir o
+   mesmo modelo de CPU ou quantidade física de memória. **Owner:** POC. **Resolvida em:** 2026-08-09.
 8. **O baseline OSS único é suficiente frente ao `js-confuser`?** Registrar justificativa no
    protocolo ou planejar rodada adicional sem contaminar a matriz mínima inicial. **Owner:**
    @andersonalves. **Deadline:** antes do aceite final do ADR 001.

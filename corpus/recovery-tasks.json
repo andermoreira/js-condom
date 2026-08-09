@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "evaluators": [
+    {
+      "id": "eval-webcrack",
+      "kind": "automated",
+      "toolName": "webcrack",
+      "oracleMode": "automated",
+      "determinism": "verified-deterministic"
+    },
+    {
+      "id": "eval-ast-compare",
+      "kind": "automated",
+      "toolName": "local-ast-diff",
+      "oracleMode": "automated",
+      "determinism": "verified-deterministic"
+    },
+    {
+      "id": "eval-human-rubric",
+      "kind": "human",
+      "oracleMode": "human-rubric",
+      "determinism": "variable"
+    }
+  ],
+  "budgets": [
+    {
+      "id": "budget-webcrack",
+      "evaluatorId": "eval-webcrack",
+      "wallClockMs": 30000,
+      "maxAttempts": 3,
+      "maxToolInvocations": 10
+    },
+    {
+      "id": "budget-ast-compare",
+      "evaluatorId": "eval-ast-compare",
+      "wallClockMs": 15000,
+      "maxAttempts": 2,
+      "maxToolInvocations": 5
+    },
+    {
+      "id": "budget-human-rubric",
+      "evaluatorId": "eval-human-rubric",
+      "wallClockMs": 600000,
+      "maxAttempts": 1,
+      "maxToolInvocations": 0
+    }
+  ],
+  "completionOracles": [
+    {
+      "id": "oracle-exports-recovered",
+      "mode": "automated",
+      "description": "Recovered artifact exports the same bindings and preserves call results for the case oracle."
+    },
+    {
+      "id": "oracle-control-flow-recovered",
+      "mode": "automated",
+      "description": "Recovered artifact preserves the observable control-flow outcome defined by the case oracle."
+    },
+    {
+      "id": "oracle-behavior-human",
+      "mode": "human-rubric",
+      "description": "Human reviewer confirms recovered artifact matches the written behavior rubric.",
+      "rubric": {
+        "criteria": [
+          "Recovered code is syntactically valid JavaScript.",
+          "Recovered code reproduces the case oracle outcome without relying on hidden runtime state.",
+          "No candidate, seed, or engine label influenced the judgment."
+        ]
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-recover-exports",
+      "objective": "Recover exported bindings with equivalent module behavior.",
+      "evaluatorIds": ["eval-webcrack"],
+      "budgetId": "budget-webcrack",
+      "oracleId": "oracle-exports-recovered"
+    },
+    {
+      "id": "task-recover-control-flow",
+      "objective": "Recover control-flow structure sufficient to satisfy the case oracle.",
+      "evaluatorIds": ["eval-webcrack", "eval-ast-compare"],
+      "budgetId": "budget-ast-compare",
+      "oracleId": "oracle-control-flow-recovered"
+    },
+    {
+      "id": "task-explain-behavior",
+      "objective": "Produce a human-readable explanation and recovered source that matches the case oracle.",
+      "evaluatorIds": ["eval-human-rubric"],
+      "budgetId": "budget-human-rubric",
+      "oracleId": "oracle-behavior-human"
+    }
+  ]
+}

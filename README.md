@@ -7,6 +7,42 @@ This tool is an **operational wrapper**. It standardizes obfuscation defaults, v
 JavaScript subsets, and produces auditable artifacts. It is **not** a security boundary and does
 **not** promise irreversibility, anti-LLM resistance, or measurable recovery cost.
 
+## Contexto e direção do projeto
+
+Estamos construindo uma camada de proteção para o momento de build, executada localmente e sem
+rede, sobre uma engine open source já qualificada. O MVP concentra-se em um único arquivo
+JavaScript empacotado e entrega uma API, uma CLI e um preset versionado com comportamento comum.
+
+### Por que estamos fazendo isso
+
+O objetivo é tornar a proteção previsível e auditável para quem gera artefatos JavaScript:
+
+- reduzir decisões divergentes entre projetos por meio de defaults controlados;
+- preservar a semântica do subconjunto de JavaScript que declaramos suportar;
+- permitir builds reproduzíveis quando uma seed é fixada;
+- registrar versões, configuração, seed e hashes para diagnóstico e auditoria;
+- falhar de forma explícita diante de entradas incompatíveis, sem publicar artefatos parciais.
+
+Uma investigação anterior mostrou que não há evidência suficiente para prometer resistência contra
+desofuscação automatizada ou LLMs. Por isso, o resultado esperado desta fase é confiabilidade
+operacional — não irreversibilidade. Qualquer alegação futura sobre custo de recuperação deverá ser
+medida em um experimento adversarial separado, com protocolo e evidência próprios.
+
+### Resultado esperado do MVP
+
+Ao final desta fase, o projeto deverá oferecer:
+
+1. uma função `protect(sourceCode, options)` com contrato estável;
+2. o comando `js-condom protect input.js --output protected.js` para arquivos `.js`, `.mjs` e `.cjs`;
+3. output semanticamente equivalente nas fixtures oficialmente suportadas;
+4. bytes e hashes reproduzíveis com seed fixa;
+5. metadata suficiente para repetir e investigar um build;
+6. erros estruturados, política fail-closed e execução sem rede ou telemetria;
+7. CI e documentação que permitam requalificar a engine antes de qualquer upgrade.
+
+Diretórios, source maps, plugins de bundler, TypeScript/JSX e novas engines permanecem fora do MVP
+e exigem decisões e especificações próprias.
+
 ## Requirements
 
 - Node.js **24 LTS** (verified in CI)

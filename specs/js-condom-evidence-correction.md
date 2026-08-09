@@ -105,6 +105,6 @@ evidência insuficiente, nunca resistência presumida.
 ## Implementation plan
 
 1. Registrar a decisão e as limitações no ADR 002 e no benchmark durável.
-2. Após aprovação do reposicionamento, revisar `specs/js-condom-core.md` e gerar novos Atomic Steps.
+2. Após aprovação do reposicionamento, revisar o core e gerar novos Atomic Steps; a versão aceita está arquivada em `specs/archive/2026-08-09-js-condom-core/`.
 3. Antes de qualquer implementação, criar uma spec técnica separada para o harness experimental e
    resolver os bloqueios de segurança e dependências.

@@ -7,7 +7,7 @@ códigos de erro sem acoplar consumidores às flags internas da engine.
 
 ## Rastreabilidade
 
-- Spec: `specs/js-condom-core.md`, seções Goal, Preset e configuração, Erros e AC 2, 5, 6, 9, 10.
+- Spec: `specs/archive/2026-08-09-js-condom-core/js-condom-core.md`, seções Goal, Preset e configuração, Erros e AC 2, 5, 6, 9, 10.
 - ADR: `adr/002-evidencia-e-posicionamento-v1.md`.
 
 ## Arquivos previstos

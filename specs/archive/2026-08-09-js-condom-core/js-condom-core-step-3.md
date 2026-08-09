@@ -7,7 +7,7 @@ exit codes consistentes com a API.
 
 ## Rastreabilidade
 
-- Spec: `specs/js-condom-core.md`, seções Entrada, Saída e relatório, Erros e AC 3, 9, 10.
+- Spec: `specs/archive/2026-08-09-js-condom-core/js-condom-core.md`, seções Entrada, Saída e relatório, Erros e AC 3, 9, 10.
 - Dependência: Step 2.
 
 ## Arquivos previstos

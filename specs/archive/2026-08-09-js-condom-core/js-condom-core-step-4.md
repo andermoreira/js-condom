@@ -7,7 +7,7 @@ segurança coerentes com o wrapper offline.
 
 ## Rastreabilidade
 
-- Spec: `specs/js-condom-core.md`, Requisitos não funcionais, Threat model, AC 1, 4, 11 e 12.
+- Spec: `specs/archive/2026-08-09-js-condom-core/js-condom-core.md`, Requisitos não funcionais, Threat model, AC 1, 4, 11 e 12.
 - Dependência: Step 3.
 
 ## Arquivos previstos

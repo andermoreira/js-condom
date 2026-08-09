@@ -7,7 +7,7 @@ validação pós-transform na matriz de fixtures.
 
 ## Rastreabilidade
 
-- Spec: `specs/js-condom-core.md`, seções Entrada, Compatibilidade semântica, Threat model e AC 4, 7, 8.
+- Spec: `specs/archive/2026-08-09-js-condom-core/js-condom-core.md`, seções Entrada, Compatibilidade semântica, Threat model e AC 4, 7, 8.
 - Dependência: Step 1.
 
 ## Arquivos previstos

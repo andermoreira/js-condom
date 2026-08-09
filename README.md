@@ -43,6 +43,64 @@ Ao final desta fase, o projeto deverá oferecer:
 Diretórios, source maps, plugins de bundler, TypeScript/JSX e novas engines permanecem fora do MVP
 e exigem decisões e especificações próprias.
 
+## Uso recomendado
+
+O fluxo típico é:
+
+1. gerar e empacotar o JavaScript da aplicação;
+2. executar o `js-condom` no artefato final;
+3. armazenar o código protegido e o relatório junto do registro do build;
+4. guardar a `seedUsed`, o `presetVersion` e os hashes para reprodução ou diagnóstico.
+
+### CLI
+
+Depois de instalar as dependências, proteja um único arquivo:
+
+```bash
+npm ci
+node src/cli/protect.js protect dist/app.js \
+  --output dist/app.protected.js \
+  --report dist/app.protected.json \
+  --seed release-2026-08-09
+```
+
+Para builds reproduzíveis, mantenha a mesma seed, versão do pacote, versão da engine e preset.
+Para builds independentes, omita `--seed`; a seed efetiva será registrada no relatório.
+
+### API
+
+Use a API quando o pipeline de build já for controlado por Node.js:
+
+```js
+import { readFile, writeFile } from 'node:fs/promises';
+import { protect } from './src/core/protect.js';
+
+const source = await readFile('dist/app.js', 'utf8');
+const result = await protect(source, { seed: 'release-2026-08-09' });
+
+await writeFile('dist/app.protected.js', result.code, 'utf8');
+await writeFile('dist/app.protected.json', `${JSON.stringify(result.metadata, null, 2)}\n`);
+```
+
+O `js-condom` rejeita opções desconhecidas e entradas fora do subconjunto suportado. Em caso de
+erro, a CLI retorna código diferente de zero e escreve um objeto JSON no stderr. Nenhum artefato
+deve ser tratado como publicado quando a operação falhar.
+
+## O que o wrapper acrescenta
+
+Quando usado com a mesma versão, preset e seed, o `js-condom` utiliza a mesma engine de
+transformação do `javascript-obfuscator`. O ganho está no processo ao redor dela:
+
+- preset controlado, em vez de flags divergentes por projeto;
+- seed, versões, configuração e hashes registrados;
+- validação de hazards e do output antes da publicação;
+- API e CLI com o mesmo contrato;
+- escrita atômica, prevenção de conflitos e erros estruturados;
+- gates de CI, auditoria e execução sem rede.
+
+Isso melhora previsibilidade, reprodução e diagnóstico. Não constitui uma camada adicional de
+criptografia nem uma prova de resistência contra desofuscação, análise manual ou LLMs.
+
 ## Requirements
 
 - Node.js **24 LTS** (verified in CI)

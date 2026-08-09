@@ -101,6 +101,59 @@ transformação do `javascript-obfuscator`. O ganho está no processo ao redor d
 Isso melhora previsibilidade, reprodução e diagnóstico. Não constitui uma camada adicional de
 criptografia nem uma prova de resistência contra desofuscação, análise manual ou LLMs.
 
+## Exemplo de output e desofuscação
+
+Considere este código de entrada:
+
+```js
+export function greet(name) {
+  return 'Hello, ' + name + '!';
+}
+```
+
+Com o preset v1 e uma seed fixa, o output contém nomes hexadecimais, uma tabela de strings e um
+decodificador gerado pela engine. Um trecho representativo do output atual é:
+
+```js
+function _0x5e01(_0x2a5f9d, _0x308dc7) {
+  var _0x385af2 = _0x385a();
+  return _0x5e01 = function (_0x5e0181, _0xf0dbdc) {
+    _0x5e0181 = _0x5e0181 - 0x1de;
+    return _0x385af2[_0x5e0181];
+  }, _0x5e01(_0x2a5f9d, _0x308dc7);
+}
+
+// tabela e bootstrap omitidos neste exemplo
+
+export function greet(_0x49708f) {
+  var _0x2969d5 = _0x5e01;
+  return _0x2969d5(0x1e6) + _0x49708f + '!';
+}
+```
+
+Esse formato aumenta o trabalho de leitura, mas não esconde a lógica de forma permanente. Uma
+desofuscação típica pode:
+
+1. analisar o AST e localizar a tabela de strings;
+2. executar ou avaliar estaticamente o decodificador;
+3. substituir chamadas como `_0x2969d5(0x1e6)` pelo texto correspondente;
+4. renomear identificadores e reformatar o código;
+5. comparar o resultado com o comportamento do artefato original.
+
+Depois dessas etapas, a lógica essencial pode voltar a uma forma próxima de:
+
+```js
+export function greet(name) {
+  return 'Hello, ' + name + '!';
+}
+```
+
+Portanto, o resultado esperado do `js-condom` é dificultar a leitura casual e padronizar o build,
+não impedir engenharia reversa. A facilidade de recuperação depende do programa, do preset, da
+engine e das ferramentas usadas pelo analista. Este repositório não publica uma taxa de sucesso,
+tempo de recuperação ou vantagem contra LLMs; qualquer número desse tipo precisa de um benchmark
+adversarial separado e reproduzível.
+
 ## Requirements
 
 - Node.js **24 LTS** (verified in CI)

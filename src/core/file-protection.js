@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Operações de proteção em arquivos e publicação atômica no js-condom.
+ *
+ * Garante que:
+ * 1. Apenas extensões suportadas (.js, .mjs, .cjs) sejam processadas.
+ * 2. Nenhuma sobrescrita acidental ocorra (falha fechada para arquivos existentes).
+ * 3. O arquivo protegido e o relatório de metadados sejam gravados de forma atômica
+ *    (via arquivo temporário único renomeado), impedindo artefatos corrompidos ou parciais.
+ * 4. Em caso de falha, qualquer artefato parcial criado seja limpo imediatamente.
+ */
+
 import { randomBytes } from 'node:crypto';
 import { access, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -5,12 +16,27 @@ import { basename, dirname, extname, resolve } from 'node:path';
 import { createPublicError } from './errors.js';
 import { protect } from './protect.js';
 
+/**
+ * Extensões de arquivo oficialmente suportadas no MVP v1.
+ */
 export const SUPPORTED_EXTENSIONS = Object.freeze(new Set(['.js', '.mjs', '.cjs']));
 
+/**
+ * Normaliza um caminho para seu equivalente absoluto.
+ *
+ * @param {string} filePath
+ * @returns {string}
+ */
 function normalizePath(filePath) {
   return resolve(filePath);
 }
 
+/**
+ * Verifica de forma assíncrona se um arquivo ou diretório existe no disco.
+ *
+ * @param {string} filePath
+ * @returns {Promise<boolean>}
+ */
 async function pathExists(filePath) {
   try {
     await access(filePath, constants.F_OK);
@@ -20,6 +46,12 @@ async function pathExists(filePath) {
   }
 }
 
+/**
+ * Valida se a extensão do arquivo de entrada pertence ao subconjunto suportado.
+ *
+ * @param {string} inputPath - Caminho do arquivo de entrada.
+ * @throws {import('./errors.js').JsCondomError} Caso a extensão não seja .js, .mjs ou .cjs.
+ */
 export function validateInputExtension(inputPath) {
   const extension = extname(inputPath);
   if (!SUPPORTED_EXTENSIONS.has(extension)) {
@@ -31,6 +63,16 @@ export function validateInputExtension(inputPath) {
   }
 }
 
+/**
+ * Valida que os caminhos de entrada, saída e relatório não colidem entre si
+ * e que os destinos ainda não existem no sistema de arquivos (fail-closed).
+ *
+ * @param {Object} params
+ * @param {string} params.inputPath - Caminho de entrada.
+ * @param {string} params.outputPath - Caminho do arquivo protegido de destino.
+ * @param {string} [params.reportPath] - Caminho opcional do arquivo de relatório.
+ * @throws {import('./errors.js').JsCondomError} Em caso de colisão ou arquivo existente.
+ */
 export async function assertNoOutputConflict({ inputPath, outputPath, reportPath }) {
   const normalizedInput = normalizePath(inputPath);
   const normalizedOutput = normalizePath(outputPath);
@@ -71,6 +113,14 @@ export async function assertNoOutputConflict({ inputPath, outputPath, reportPath
   }
 }
 
+/**
+ * Escreve um arquivo de forma atômica: grava primeiro em um arquivo temporário
+ * com sufixo aleatório no mesmo diretório e realiza um rename atômico.
+ *
+ * @param {string} targetPath - Caminho final do arquivo.
+ * @param {string} content - Conteúdo em texto UTF-8.
+ * @throws {import('./errors.js').JsCondomError} Em caso de falha de gravação ou renomeação.
+ */
 export async function writeFileAtomically(targetPath, content) {
   const absoluteTarget = normalizePath(targetPath);
   const directory = dirname(absoluteTarget);
@@ -89,11 +139,24 @@ export async function writeFileAtomically(targetPath, content) {
   }
 }
 
+/**
+ * Gera um caminho temporário único no mesmo diretório do arquivo de destino.
+ *
+ * @param {string} directory
+ * @param {string} fileName
+ * @returns {string}
+ */
 function joinTempPath(directory, fileName) {
   const suffix = randomBytes(8).toString('hex');
   return resolve(directory, `.${fileName}.${suffix}.tmp`);
 }
 
+/**
+ * Lê o conteúdo do arquivo de entrada com tratamento seguro de erros.
+ *
+ * @param {string} inputPath
+ * @returns {Promise<string>}
+ */
 async function readInputFile(inputPath) {
   try {
     return await readFile(inputPath, 'utf8');
@@ -107,13 +170,13 @@ async function readInputFile(inputPath) {
 }
 
 /**
- * Protects a single JavaScript file and publishes validated artifacts atomically.
+ * Protege um arquivo JavaScript no disco e publica o código e relatório atomicamente.
  *
  * @param {Object} params
- * @param {string} params.inputPath
- * @param {string} params.outputPath
- * @param {string} [params.reportPath]
- * @param {import('./config.js').ProtectOptions} [params.options]
+ * @param {string} params.inputPath - Arquivo JavaScript de entrada (.js, .mjs, .cjs).
+ * @param {string} params.outputPath - Caminho onde o arquivo protegido será gravado.
+ * @param {string} [params.reportPath] - Caminho opcional para gravação do relatório JSON.
+ * @param {import('./config.js').ProtectOptions} [params.options] - Opções de proteção (ex: seed).
  * @returns {Promise<import('./config.js').ProtectResult>}
  */
 export async function protectFile({ inputPath, outputPath, reportPath, options = {} }) {
@@ -139,3 +202,4 @@ export async function protectFile({ inputPath, outputPath, reportPath, options =
 
   return result;
 }
+

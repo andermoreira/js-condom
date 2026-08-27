@@ -1,4 +1,12 @@
 #!/usr/bin/env node
+/**
+ * @fileoverview Ponto de entrada da CLI do js-condom (`js-condom protect`).
+ *
+ * Oferece interface de linha de comando para proteção de arquivos JS únicos,
+ * validação rigorosa de argumentos com fail-closed, escrita de relatório opcional
+ * e serialização padronizada de erros para stderr em formato JSON.
+ */
+
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,6 +17,9 @@ import {
   serializePublicError,
 } from '../core/errors.js';
 
+/**
+ * Esquema de opções suportadas pela CLI.
+ */
 const CLI_OPTIONS = {
   output: { type: 'string' },
   report: { type: 'string' },
@@ -17,15 +28,18 @@ const CLI_OPTIONS = {
 
 /**
  * @typedef {Object} ParsedProtectCliArgs
- * @property {string} inputPath
- * @property {string} outputPath
- * @property {string | undefined} reportPath
- * @property {import('../core/config.js').ProtectOptions} options
+ * @property {string} inputPath - Caminho do arquivo de entrada.
+ * @property {string} outputPath - Caminho do arquivo protegido gerado.
+ * @property {string | undefined} reportPath - Caminho do relatório de auditoria (opcional).
+ * @property {import('../core/config.js').ProtectOptions} options - Opções passadas ao core.
  */
 
 /**
- * @param {string[]} argv
+ * Realiza o parsing e a validação estrita dos argumentos da CLI.
+ *
+ * @param {string[]} argv - Array de argumentos do processo (geralmente process.argv).
  * @returns {ParsedProtectCliArgs}
+ * @throws {import('../core/errors.js').JsCondomError} Em caso de comando desconhecido ou flag ausente.
  */
 export function parseProtectCliArgs(argv) {
   const args = argv.slice(2);
@@ -81,8 +95,10 @@ export function parseProtectCliArgs(argv) {
 }
 
 /**
- * @param {string[]} argv
- * @returns {Promise<number>}
+ * Executa o fluxo da CLI de proteção com tratamento de exceções e código de saída.
+ *
+ * @param {string[]} argv - Argumentos de linha de comando.
+ * @returns {Promise<number>} Código de saída do processo (0 para sucesso, 1 para erro).
  */
 export async function runProtectCli(argv) {
   try {
@@ -98,6 +114,7 @@ export async function runProtectCli(argv) {
   }
 }
 
+// Detecção de execução como módulo principal para execução automática
 const isMainModule =
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
@@ -106,3 +123,4 @@ if (isMainModule) {
   const exitCode = await runProtectCli(process.argv);
   process.exit(exitCode);
 }
+

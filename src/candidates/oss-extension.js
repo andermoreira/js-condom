@@ -50,6 +50,10 @@ function validateSourceCode(sourceCode) {
   }
 }
 
+function detectSourceType(sourceCode) {
+  return /\b(import|export)\b/.test(sourceCode) ? 'module' : 'script';
+}
+
 function validateOutput(code) {
   if (typeof code !== 'string' || code.length === 0) {
     throw new OssExtensionError(
@@ -59,7 +63,10 @@ function validateOutput(code) {
   }
 
   try {
-    new Function(code);
+    acorn.parse(code, {
+      ecmaVersion: 'latest',
+      sourceType: detectSourceType(code),
+    });
   } catch (error) {
     throw new OssExtensionError(
       'invalid_output',
@@ -69,9 +76,6 @@ function validateOutput(code) {
   }
 }
 
-function detectSourceType(sourceCode) {
-  return /\b(import|export)\b/.test(sourceCode) ? 'module' : 'script';
-}
 
 function variantIndexForNode(projectedSeed, nodeStart) {
   const digest = createHash('sha256')

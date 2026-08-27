@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as acorn from 'acorn';
 import JavaScriptObfuscator from 'javascript-obfuscator';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const TOOL_PACKAGE_JSON = join(
@@ -205,6 +207,10 @@ function buildObfuscatorOptions(config, projectedSeed) {
   return options;
 }
 
+function detectSourceType(sourceCode) {
+  return /\b(import|export)\b/.test(sourceCode) ? 'module' : 'script';
+}
+
 function validateOutput(code) {
   if (typeof code !== 'string' || code.length === 0) {
     throw new OssBaselineError(
@@ -214,8 +220,10 @@ function validateOutput(code) {
   }
 
   try {
-    // Syntax check for script bodies produced by the corpus; modules are out of scope here.
-    new Function(code);
+    acorn.parse(code, {
+      ecmaVersion: 'latest',
+      sourceType: detectSourceType(code),
+    });
   } catch (error) {
     throw new OssBaselineError(
       'invalid_output',
@@ -224,6 +232,7 @@ function validateOutput(code) {
     );
   }
 }
+
 
 export function protect({ sourceCode, canonicalSeed, config }) {
   validateSourceCode(sourceCode);

@@ -1,7 +1,21 @@
+/**
+ * @fileoverview Preservador de exportações ESM para o harness de execução e testes.
+ *
+ * Engines de ofuscação frequentemente encapsulam código em IIFEs ou renomeiam
+ * identificadores no escopo raiz, o que pode quebrar declarações `export`.
+ * Este utilitário:
+ * 1. Extrai bindings exportados antes da ofuscação usando AST Acorn.
+ * 2. Remove temporariamente as declarações `export` para permitir a transformação.
+ * 3. Re-anexa as declarações `export { ... }` ao código protegido final.
+ */
+
 import * as acorn from 'acorn';
 
 /**
- * Collect local binding names that are exported from an ESM module.
+ * Coleta os nomes dos identificadores locais que são exportados em um módulo ESM.
+ *
+ * @param {string} sourceCode - Código-fonte JavaScript em formato de módulo.
+ * @returns {string[]} Lista de nomes de identificadores exportados.
  */
 export function extractExportedBindings(sourceCode) {
   const program = acorn.parse(sourceCode, {
@@ -32,6 +46,7 @@ export function extractExportedBindings(sourceCode) {
 
   return bindings;
 }
+
 
 function collectDeclarationBindings(declaration, bindings) {
   if (

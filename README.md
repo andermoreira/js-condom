@@ -222,6 +222,22 @@ const { code, metadata } = await protect(sourceCode, { seed: 'optional-seed' });
 
 Unknown options are rejected with `INVALID_CONFIG`. The public API does not expose raw engine flags.
 
+## Error Taxonomy
+
+All errors surfaced by the API or CLI use one of the canonical, standardized codes:
+
+| Error Code | Meaning | Example Trigger |
+|---|---|---|
+| `INVALID_INPUT` | Input source code or CLI arguments are invalid | Empty string, non-JS extension, missing `--output` |
+| `INVALID_CONFIG` | Provided configuration options are invalid | Unknown option keys, empty seed string |
+| `UNSUPPORTED_SYNTAX` | JavaScript syntax is invalid or uses unsupported statements | Syntax error, `with (...)` statement |
+| `SEMANTIC_HAZARD` | Code uses constructs that break under obfuscation | `eval()`, `new Function()`, `fn.toString()` |
+| `PROTECTION_FAILED` | Obfuscation engine failed during transformation or smoke load | Engine transformation exception, smoke load crash |
+| `OUTPUT_CONFLICT` | Target output or report path collides with input or exists | Target file already exists on disk |
+| `INTERNAL_ERROR` | Unexpected internal exception | Uncaught filesystem error during atomic rename |
+
+Errors output to `stderr` are strictly sanitized: secrets, tokens, passwords, and source code fragments are filtered out.
+
 ## CLI
 
 Protect a single JavaScript file:
@@ -243,13 +259,27 @@ js-condom protect input.mjs --output out.mjs --report report.json --seed my-seed
 - Errors are written to stderr as structured JSON; exit code is non-zero on failure.
 - Output paths must not collide with the input or existing files (fail closed).
 
+## Security and Hardening Guarantees
+
+1. **Deterministic Hashes:** `configSha256` is computed by recursively sorting object keys in the config tree, ensuring identical seeds and preset versions always yield matching configuration hashes across platforms.
+2. **Fail-Closed Atomic Writes:** Outputs and reports are written to temporary files (`.${filename}.${randomHex}.tmp`) and renamed atomically. If any error occurs, partial artifacts are removed immediately.
+3. **Recursive Detail Sanitization:** Error details stripped of source code, API keys, passwords, and tokens up to 4 levels of object depth.
+4. **AST-Based Hazard Detection:** Detection of `with`, `eval`, `Function`, and `toString` dependencies operates on parsed Acorn AST nodes rather than naive regex, eliminating false positives on comments and strings.
+5. **No Host Execution:** Protected code is validated via AST parsing and sandboxed subprocess checks without executing untrusted user side-effects in the build host.
+
 ## Preset v1
 
 The preset is versioned as a single unit (`presetVersion: 1.0.0`). It encapsulates approved
-`javascript-obfuscator` options (compact output, string array, no self-defending, no dead-code
-injection, etc.). Consumers cannot pass arbitrary engine flags.
+`javascript-obfuscator` options:
+- `compact: true` (minified bundle)
+- `identifierNamesGenerator: 'hexadecimal'` (stable renaming)
+- `stringArray: true` & `stringArrayShuffle: true` (string table extraction with seed)
+- `simplify: true`
+- `controlFlowFlattening: false` & `deadCodeInjection: false` (disabled to preserve runtime performance and stability)
+- `selfDefending: false` (disabled to avoid runtime traps in legitimate environments)
+- `renameGlobals: false` (disabled to preserve cross-module and global compatibility)
 
-Qualified engine: `javascript-obfuscator@4.1.0` (see `package.json` → `jsCondom`).
+Consumers cannot pass arbitrary engine flags. Qualified engine: `javascript-obfuscator@4.1.0` (see `package.json` → `jsCondom`).
 
 ## Seed behavior
 
@@ -286,6 +316,11 @@ Do not ship engine or preset upgrades without completing the checklist.
 Input and output remain in the local process. The tool does not send source code, metadata, or
 artifacts to external services during protection.
 
+## Code Reviews and Audits
+
+- [2026-08-27 Code Review, Hardening & Security Analysis](docs/reviews/2026-08-27-js-condom-code-review-and-hardening.md)
+- [2026-08-09 Spec and ADR Review](docs/reviews/2026-08-09-js-condom-spec-adr-review.md)
+
 ## Development
 
 ```bash
@@ -295,3 +330,4 @@ npm audit --audit-level=high
 ```
 
 See [docs/release-checklist.md](docs/release-checklist.md) before tagging a release.
+

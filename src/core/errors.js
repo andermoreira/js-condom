@@ -46,15 +46,20 @@ const BLOCKED_DETAIL_KEYS = new Set([
  * @param {string} key - Nome da chave a ser verificada.
  * @returns {boolean} True se a chave deve ser descartada.
  */
+const BLOCKED_DETAIL_KEYS_NORMALIZED = new Set(
+  [...BLOCKED_DETAIL_KEYS].map((key) => key.toLowerCase()),
+);
+
 function isBlockedDetailKey(key) {
   const normalized = key.toLowerCase();
   return (
-    BLOCKED_DETAIL_KEYS.has(key) ||
+    BLOCKED_DETAIL_KEYS_NORMALIZED.has(normalized) ||
     normalized.includes('secret') ||
     normalized.includes('password') ||
     normalized.includes('token') ||
     normalized.includes('credential') ||
-    normalized.includes('apikey')
+    normalized.includes('apikey') ||
+    normalized.includes('stack')
   );
 }
 

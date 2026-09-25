@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import * as acorn from 'acorn';
+import { detectSourceType } from '../core/hazard-policy.js';
 import * as escodegen from '@javascript-obfuscator/escodegen';
 import { replace } from '@javascript-obfuscator/estraverse';
 import JavaScriptObfuscator from 'javascript-obfuscator';
@@ -50,10 +51,6 @@ function validateSourceCode(sourceCode) {
   }
 }
 
-function detectSourceType(sourceCode) {
-  return /\b(import|export)\b/.test(sourceCode) ? 'module' : 'script';
-}
-
 function validateOutput(code) {
   if (typeof code !== 'string' || code.length === 0) {
     throw new OssExtensionError(
@@ -65,6 +62,7 @@ function validateOutput(code) {
   try {
     acorn.parse(code, {
       ecmaVersion: 'latest',
+      allowHashBang: true,
       sourceType: detectSourceType(code),
     });
   } catch (error) {
@@ -212,6 +210,7 @@ function parseToAst(sourceCode) {
   try {
     return acorn.parse(sourceCode, {
       ecmaVersion: 'latest',
+      allowHashBang: true,
       sourceType: detectSourceType(sourceCode),
       locations: true,
     });

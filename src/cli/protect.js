@@ -41,7 +41,36 @@ const CLI_OPTIONS = {
  * @returns {ParsedProtectCliArgs}
  * @throws {import('../core/errors.js').JsCondomError} Em caso de comando desconhecido ou flag ausente.
  */
+function rethrowCliParseError(error) {
+  if (error instanceof JsCondomError) {
+    throw error;
+  }
+
+  const parseArgsCodes = new Set([
+    'ERR_PARSE_ARGS_UNKNOWN_OPTION',
+    'ERR_PARSE_ARGS_INVALID_OPTION_VALUE',
+  ]);
+
+  if (error && typeof error === 'object' && 'code' in error && parseArgsCodes.has(error.code)) {
+    throw createPublicError(
+      'INVALID_INPUT',
+      'invalid command arguments',
+      { cause: error instanceof Error ? error.message : String(error) },
+    );
+  }
+
+  throw error;
+}
+
 export function parseProtectCliArgs(argv) {
+  try {
+    return parseProtectCliArgsUnsafe(argv);
+  } catch (error) {
+    rethrowCliParseError(error);
+  }
+}
+
+function parseProtectCliArgsUnsafe(argv) {
   const args = argv.slice(2);
 
   if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {

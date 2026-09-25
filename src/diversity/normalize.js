@@ -1,4 +1,5 @@
 import * as acorn from 'acorn';
+import { detectSourceType } from '../core/hazard-policy.js';
 
 export const NORMALIZATION_VERSION = '1';
 
@@ -21,14 +22,11 @@ const LITERAL_TYPE_BY_VALUE = [
   ['undefined', 'Undefined'],
 ];
 
-function detectSourceType(sourceCode) {
-  return /\b(import|export)\b/.test(sourceCode) ? 'module' : 'script';
-}
-
 function parseSource(sourceCode, parser = acorn) {
   const sourceType = detectSourceType(sourceCode);
   return parser.parse(sourceCode, {
     ecmaVersion: 'latest',
+    allowHashBang: true,
     sourceType,
     locations: false,
   });

@@ -167,3 +167,19 @@ test('serializes public errors without source code, secrets or stack traces', ()
   assert.equal(JSON.stringify(serialized).includes('sk-live'), false);
   assert.equal(JSON.stringify(serialized).includes('stack'), false);
 });
+
+test('sanitizes blocked detail keys regardless of case', () => {
+  const error = createPublicError('INTERNAL_ERROR', 'An unexpected error occurred', {
+    Stack: 'Error: hidden\n    at protect',
+    SourceCode: SECRET_LIKE_SOURCE,
+    nested: { Password: 'hunter2', note: 'ok' },
+  });
+
+  const serialized = serializePublicError(error);
+  const payload = JSON.stringify(serialized);
+
+  assert.deepEqual(serialized.details, { nested: { note: 'ok' } });
+  assert.equal(payload.includes('hunter2'), false);
+  assert.equal(payload.includes('sk-live'), false);
+  assert.equal(payload.includes('hidden'), false);
+});

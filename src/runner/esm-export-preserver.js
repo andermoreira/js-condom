@@ -20,6 +20,7 @@ import * as acorn from 'acorn';
 export function extractExportedBindings(sourceCode) {
   const program = acorn.parse(sourceCode, {
     ecmaVersion: 'latest',
+    allowHashBang: true,
     sourceType: 'module',
   });
 
@@ -38,8 +39,10 @@ export function extractExportedBindings(sourceCode) {
     for (const specifier of node.specifiers ?? []) {
       const localName =
         specifier.local.type === 'Identifier' ? specifier.local.name : null;
-      if (localName) {
-        bindings.push(localName);
+      const exportedName =
+        specifier.exported.type === 'Identifier' ? specifier.exported.name : null;
+      if (localName && exportedName) {
+        bindings.push(localName === exportedName ? localName : `${localName} as ${exportedName}`);
       }
     }
   }
@@ -47,6 +50,44 @@ export function extractExportedBindings(sourceCode) {
   return bindings;
 }
 
+
+function collectPatternBindings(pattern, bindings) {
+  if (!pattern) {
+    return;
+  }
+
+  if (pattern.type === 'Identifier' && pattern.name) {
+    bindings.push(pattern.name);
+    return;
+  }
+
+  if (pattern.type === 'AssignmentPattern') {
+    collectPatternBindings(pattern.left, bindings);
+    return;
+  }
+
+  if (pattern.type === 'RestElement') {
+    collectPatternBindings(pattern.argument, bindings);
+    return;
+  }
+
+  if (pattern.type === 'ObjectPattern') {
+    for (const property of pattern.properties) {
+      if (property.type === 'RestElement') {
+        collectPatternBindings(property.argument, bindings);
+      } else if (property.type === 'Property') {
+        collectPatternBindings(property.value, bindings);
+      }
+    }
+    return;
+  }
+
+  if (pattern.type === 'ArrayPattern') {
+    for (const element of pattern.elements) {
+      collectPatternBindings(element, bindings);
+    }
+  }
+}
 
 function collectDeclarationBindings(declaration, bindings) {
   if (
@@ -61,9 +102,7 @@ function collectDeclarationBindings(declaration, bindings) {
 
   if (declaration.type === 'VariableDeclaration') {
     for (const declarator of declaration.declarations) {
-      if (declarator.id.type === 'Identifier') {
-        bindings.push(declarator.id.name);
-      }
+      collectPatternBindings(declarator.id, bindings);
     }
   }
 }
@@ -74,6 +113,7 @@ function collectDeclarationBindings(declaration, bindings) {
 export function stripModuleExports(sourceCode) {
   const program = acorn.parse(sourceCode, {
     ecmaVersion: 'latest',
+    allowHashBang: true,
     sourceType: 'module',
   });
 
@@ -102,7 +142,8 @@ export function stripModuleExports(sourceCode) {
 }
 
 function bindingExistsInScript(sourceCode, bindingName) {
-  const escaped = bindingName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const localName = bindingName.split(' as ')[0];
+  const escaped = localName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const patterns = [
     new RegExp(`\\bclass\\s+${escaped}\\b`),
     new RegExp(`\\b(?:async\\s+)?function\\*?\\s*${escaped}\\b`),

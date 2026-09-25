@@ -32,6 +32,13 @@ function parseStderr(stderr) {
   return JSON.parse(stderr.trim());
 }
 
+test('parseProtectCliArgs rejects unknown flags as invalid input', () => {
+  assert.throws(
+    () => parseProtectCliArgs(['node', 'cli', 'protect', 'input.js', '--output', 'out.js', '--compact']),
+    (error) => error.code === 'INVALID_INPUT',
+  );
+});
+
 test('parseProtectCliArgs requires protect subcommand and explicit output', () => {
   assert.throws(
     () => parseProtectCliArgs(['node', 'cli']),

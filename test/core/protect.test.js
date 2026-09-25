@@ -111,6 +111,60 @@ test('serializes protection errors without source code or secrets', async () => 
   }
 });
 
+test('parses scripts that only mention import or export inside strings', async () => {
+  const source =
+    '#!/usr/bin/env node\nconst label = "do not import this";\nvar await = 1;\nmodule.exports = { label, await };\n';
+  const result = await protect(source, { seed: FIXED_SEED });
+  assert.equal(typeof result.code, 'string');
+  assert.notEqual(result.code, source);
+});
+
+test('does not execute protected code in the host process', async () => {
+  const source =
+    'globalThis.__jsCondomHostLeak = true; export function add(a, b) { return a + b; }';
+  delete globalThis.__jsCondomHostLeak;
+
+  await protect(source, { seed: FIXED_SEED });
+
+  assert.equal(globalThis.__jsCondomHostLeak, undefined);
+});
+
+test('accepts primitive toString and rejects function source dependencies', async () => {
+  const formatted = await protect(
+    'export function format(n) { return (n + 1).toString(); }',
+    { seed: FIXED_SEED },
+  );
+  assert.equal(typeof formatted.code, 'string');
+
+  await assert.rejects(
+    () =>
+      protect(
+        'export function sourceOf(fn) { return Function.prototype.toString.call(fn); }',
+        { seed: FIXED_SEED },
+      ),
+    (error) =>
+      error instanceof JsCondomError &&
+      error.code === 'SEMANTIC_HAZARD' &&
+      error.details?.hazard === 'function-prototype-tostring',
+  );
+});
+
+test('reports invalid protected syntax as PROTECTION_FAILED', async () => {
+  const obfuscatorModule = await import('javascript-obfuscator');
+  const obfuscateMock = mock.method(obfuscatorModule.default, 'obfuscate', () => ({
+    getObfuscatedCode: () => 'function ( {',
+  }));
+
+  try {
+    await assert.rejects(
+      () => protect(SAMPLE_SOURCE, { seed: 'broken-output' }),
+      (error) => error instanceof JsCondomError && error.code === 'PROTECTION_FAILED',
+    );
+  } finally {
+    obfuscateMock.mock.restore();
+  }
+});
+
 test('does not invoke network during protection', async () => {
   const fetchMock = mock.fn(() => Promise.reject(new Error('network should be blocked')));
   const originalFetch = globalThis.fetch;

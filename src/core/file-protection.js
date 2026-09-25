@@ -10,7 +10,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { access, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { access, link, readFile, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { basename, dirname, extname, resolve } from 'node:path';
 import { createPublicError } from './errors.js';
@@ -53,7 +53,7 @@ async function pathExists(filePath) {
  * @throws {import('./errors.js').JsCondomError} Caso a extensão não seja .js, .mjs ou .cjs.
  */
 export function validateInputExtension(inputPath) {
-  const extension = extname(inputPath);
+  const extension = extname(inputPath).toLowerCase();
   if (!SUPPORTED_EXTENSIONS.has(extension)) {
     throw createPublicError(
       'INVALID_INPUT',
@@ -128,14 +128,23 @@ export async function writeFileAtomically(targetPath, content) {
 
   try {
     await writeFile(tempPath, content, 'utf8');
-    await rename(tempPath, absoluteTarget);
+    await link(tempPath, absoluteTarget);
   } catch (error) {
-    await rm(tempPath, { force: true });
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'EEXIST') {
+      throw createPublicError(
+        'OUTPUT_CONFLICT',
+        'target file already exists',
+        { conflict: 'target-exists' },
+      );
+    }
+
     throw createPublicError(
       'INTERNAL_ERROR',
       'failed to write output file',
       { cause: error instanceof Error ? error.message : String(error) },
     );
+  } finally {
+    await rm(tempPath, { force: true });
   }
 }
 
@@ -185,16 +194,22 @@ export async function protectFile({ inputPath, outputPath, reportPath, options =
 
   const sourceCode = await readInputFile(inputPath);
   const result = await protect(sourceCode, options);
+  let outputPublished = false;
+  let reportPublished = false;
 
   try {
     await writeFileAtomically(outputPath, result.code);
+    outputPublished = true;
 
     if (reportPath !== undefined) {
       await writeFileAtomically(reportPath, `${JSON.stringify(result.metadata, null, 2)}\n`);
+      reportPublished = true;
     }
   } catch (error) {
-    await rm(normalizePath(outputPath), { force: true });
-    if (reportPath !== undefined) {
+    if (outputPublished) {
+      await rm(normalizePath(outputPath), { force: true });
+    }
+    if (reportPublished) {
       await rm(normalizePath(reportPath), { force: true });
     }
     throw error;

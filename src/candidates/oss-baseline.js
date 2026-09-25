@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as acorn from 'acorn';
+import { detectSourceType } from '../core/hazard-policy.js';
 import JavaScriptObfuscator from 'javascript-obfuscator';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -207,10 +208,6 @@ function buildObfuscatorOptions(config, projectedSeed) {
   return options;
 }
 
-function detectSourceType(sourceCode) {
-  return /\b(import|export)\b/.test(sourceCode) ? 'module' : 'script';
-}
-
 function validateOutput(code) {
   if (typeof code !== 'string' || code.length === 0) {
     throw new OssBaselineError(
@@ -222,6 +219,7 @@ function validateOutput(code) {
   try {
     acorn.parse(code, {
       ecmaVersion: 'latest',
+      allowHashBang: true,
       sourceType: detectSourceType(code),
     });
   } catch (error) {

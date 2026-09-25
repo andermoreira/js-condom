@@ -51,7 +51,7 @@ flowchart LR
     B --> C[Detect hazards]
     C -->|valid| D[Apply v1 preset]
     D --> E[javascript-obfuscator]
-    E --> F[Validate syntax and smoke test]
+    E --> F[Validate syntax without executing]
     F -->|valid| G[Compute metadata and hashes]
     G --> H[Publish output atomically]
     C -->|detectable hazard| X[Fail-closed error]
@@ -230,11 +230,11 @@ All errors surfaced by the API or CLI use one of the canonical, standardized cod
 |---|---|---|
 | `INVALID_INPUT` | Input source code or CLI arguments are invalid | Empty string, non-JS extension, missing `--output` |
 | `INVALID_CONFIG` | Provided configuration options are invalid | Unknown option keys, empty seed string |
-| `UNSUPPORTED_SYNTAX` | JavaScript syntax is invalid or uses unsupported statements | Syntax error, `with (...)` statement |
-| `SEMANTIC_HAZARD` | Code uses constructs that break under obfuscation | `eval()`, `new Function()`, `fn.toString()` |
-| `PROTECTION_FAILED` | Obfuscation engine failed during transformation or smoke load | Engine transformation exception, smoke load crash |
+| `UNSUPPORTED_SYNTAX` | JavaScript syntax is invalid or uses `eval` / `with` | Syntax error, `eval()`, `with (...)` |
+| `SEMANTIC_HAZARD` | Code uses constructs that break under obfuscation | `new Function()`, `fn.toString()`, `Function.prototype.toString.call(fn)` |
+| `PROTECTION_FAILED` | Obfuscation engine failed, or the protected output is not valid JavaScript | Engine exception, protected code that does not parse |
 | `OUTPUT_CONFLICT` | Target output or report path collides with input or exists | Target file already exists on disk |
-| `INTERNAL_ERROR` | Unexpected internal exception | Uncaught filesystem error during atomic rename |
+| `INTERNAL_ERROR` | Unexpected internal exception | Uncaught filesystem error while publishing the output |
 
 Errors output to `stderr` are strictly sanitized: secrets, tokens, passwords, and source code fragments are filtered out.
 
@@ -262,10 +262,10 @@ js-condom protect input.mjs --output out.mjs --report report.json --seed my-seed
 ## Security and Hardening Guarantees
 
 1. **Deterministic Hashes:** `configSha256` is computed by recursively sorting object keys in the config tree, ensuring identical seeds and preset versions always yield matching configuration hashes across platforms.
-2. **Fail-Closed Atomic Writes:** Outputs and reports are written to temporary files (`.${filename}.${randomHex}.tmp`) and renamed atomically. If any error occurs, partial artifacts are removed immediately.
+2. **Fail-Closed Atomic Writes:** Outputs and reports are written to temporary files (`.${filename}.${randomHex}.tmp`) and published with a hard link that fails if the target already exists. Only files this run published are removed if a later step fails.
 3. **Recursive Detail Sanitization:** Error details stripped of source code, API keys, passwords, and tokens up to 4 levels of object depth.
 4. **AST-Based Hazard Detection:** Detection of `with`, `eval`, `Function`, and `toString` dependencies operates on parsed Acorn AST nodes rather than naive regex, eliminating false positives on comments and strings.
-5. **No Host Execution:** Protected code is validated via AST parsing and sandboxed subprocess checks without executing untrusted user side-effects in the build host.
+5. **No Host Execution:** `protect()` validates the artifact by parsing it. It does not import or execute that code in the build process. Semantic checks of fixtures run in a separate subprocess during tests, not during publication.
 
 ## Preset v1
 

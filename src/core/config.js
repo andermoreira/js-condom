@@ -15,6 +15,10 @@ import { createPublicError } from './errors.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const PACKAGE_JSON_PATH = join(__dirname, '../../package.json');
+
+function readProjectPackageJson() {
+  return JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf8'));
+}
 const ENGINE_PACKAGE_JSON_PATH = join(
   __dirname,
   '../../node_modules/javascript-obfuscator/package.json',
@@ -98,7 +102,11 @@ export const PRESET_V1 = Object.freeze({
  * @returns {unknown}
  */
 function sortValue(value) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+  if (Array.isArray(value)) {
+    return value.map((item) => sortValue(item));
+  }
+
+  if (value === null || typeof value !== 'object') {
     return value;
   }
 
@@ -115,8 +123,7 @@ function sortValue(value) {
  * @returns {string}
  */
 export function getToolVersion() {
-  const packageJson = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf8'));
-  return packageJson.version;
+  return readProjectPackageJson().version;
 }
 
 /**
@@ -126,7 +133,27 @@ export function getToolVersion() {
  */
 export function getEngineVersion() {
   const packageJson = JSON.parse(readFileSync(ENGINE_PACKAGE_JSON_PATH, 'utf8'));
-  return packageJson.version;
+  const installedVersion = packageJson.version;
+  const qualifiedVersion = readProjectPackageJson().jsCondom?.qualifiedEngineVersion;
+
+  if (typeof qualifiedVersion !== 'string' || installedVersion !== qualifiedVersion) {
+    throw createPublicError(
+      'INTERNAL_ERROR',
+      'installed javascript-obfuscator does not match jsCondom.qualifiedEngineVersion',
+      { installedVersion, qualifiedVersion: qualifiedVersion ?? null },
+    );
+  }
+
+  const declaredPresetVersion = readProjectPackageJson().jsCondom?.presetVersion;
+  if (declaredPresetVersion !== PRESET_VERSION) {
+    throw createPublicError(
+      'INTERNAL_ERROR',
+      'PRESET_VERSION does not match jsCondom.presetVersion',
+      { presetVersion: PRESET_VERSION, declaredPresetVersion: declaredPresetVersion ?? null },
+    );
+  }
+
+  return installedVersion;
 }
 
 /**

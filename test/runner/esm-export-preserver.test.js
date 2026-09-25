@@ -29,6 +29,11 @@ describe('esm-export-preserver', () => {
     assert.deepEqual(extractExportedBindings(source), ['getMode']);
   });
 
+  it('keeps export aliases and destructured locals', () => {
+    const source = 'const value = { mode: "bundle", extra: 1 };\nexport const { mode } = value;\nexport { mode as bundleMode };';
+    assert.deepEqual(extractExportedBindings(source), ['mode', 'mode as bundleMode']);
+  });
+
   it('restores exports by name after protection', () => {
     const source =
       'const internal = { mode: "bundle" };\nexport function getMode() { return internal.mode; }';

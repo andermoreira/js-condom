@@ -6,51 +6,15 @@
  * 2. Resolução de configuração e projeção de seed (config v1 estável).
  * 3. Análise estática de AST para detecção de riscos semânticos (eval, Function, with, toString).
  * 4. Ofuscação via engine qualificada (`javascript-obfuscator@4.1.0`).
- * 5. Validação sintática do código gerado.
- * 6. Smoke test de carregamento em isolamento temporário.
- * 7. Geração de metadados reprodutíveis e hashes criptográficos SHA-256.
+ * 5. Validação sintática do código gerado, sem executá-lo no processo host.
+ * 6. Geração de metadados reprodutíveis e hashes criptográficos SHA-256.
  */
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import JavaScriptObfuscator from 'javascript-obfuscator';
 import { resolveProtectionConfig, validateProtectInput } from './config.js';
 import { createPublicError } from './errors.js';
-import {
-  analyzeSemanticHazards,
-  detectSourceType,
-  validateProtectedSyntax,
-} from './hazard-policy.js';
+import { analyzeSemanticHazards, validateProtectedSyntax } from './hazard-policy.js';
 import { buildProtectionMetadata } from './metadata.js';
-
-/**
- * Realiza teste de fumaça (smoke load) para validar que o código protegido
- * é carregável como módulo ou script sem quebrar a inicialização do runtime.
- *
- * @param {string} sourceCode - Código protegido gerado.
- * @throws {import('./errors.js').JsCondomError} Caso o código falhe na carga.
- */
-async function smokeLoadProtectedCode(sourceCode) {
-  const sourceType = detectSourceType(sourceCode);
-  const extension = sourceType === 'module' ? '.mjs' : '.cjs';
-  const workDir = await mkdtemp(join(tmpdir(), 'js-condom-smoke-'));
-
-  try {
-    const filePath = join(workDir, `smoke${extension}`);
-    await writeFile(filePath, sourceCode, 'utf8');
-    await import(pathToFileURL(filePath).href);
-  } catch (error) {
-    throw createPublicError(
-      'PROTECTION_FAILED',
-      'protected code failed execution smoke test',
-      { cause: error instanceof Error ? error.message : String(error) },
-    );
-  } finally {
-    await rm(workDir, { recursive: true, force: true });
-  }
-}
 
 /**
  * Protege código-fonte JavaScript utilizando o preset de proteção versionado.
@@ -85,13 +49,11 @@ export async function protect(sourceCode, options = {}) {
     );
   }
 
-  // 5. Validação sintática da AST do artefato resultante
+  // 5. Validação sintática da AST do artefato resultante.
+  // O artefato não é importado nem executado neste processo.
   validateProtectedSyntax(outputCode);
 
-  // 6. Teste de fumaça de importação
-  await smokeLoadProtectedCode(outputCode);
-
-  // 7. Composição e retorno do resultado com metadados e hashes auditáveis
+  // 6. Composição e retorno do resultado com metadados e hashes auditáveis
   return {
     code: outputCode,
     metadata: buildProtectionMetadata({

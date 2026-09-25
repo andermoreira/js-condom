@@ -33,6 +33,7 @@ test('validateInputExtension accepts .js, .mjs and .cjs', () => {
   assert.doesNotThrow(() => validateInputExtension('bundle.js'));
   assert.doesNotThrow(() => validateInputExtension('bundle.mjs'));
   assert.doesNotThrow(() => validateInputExtension('bundle.cjs'));
+  assert.doesNotThrow(() => validateInputExtension('bundle.JS'));
 });
 
 test('validateInputExtension rejects unsupported extensions', () => {

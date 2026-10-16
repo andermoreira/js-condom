@@ -72,7 +72,6 @@ export function enumerateUnorderedSeedPairs(seeds) {
 
 export function computePairDiversity({
   manifest,
-  baseSeed,
   comparisonSeed,
   baseSource,
   comparisonSource,
@@ -121,7 +120,6 @@ export function runDiversityForGroup({
   for (const { baseSeed, comparisonSeed } of enumerateUnorderedSeedPairs(seeds)) {
     const comparison = computePairDiversity({
       manifest,
-      baseSeed,
       comparisonSeed,
       baseSource: seedSources.get(baseSeed),
       comparisonSource: seedSources.get(comparisonSeed),

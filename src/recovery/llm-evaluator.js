@@ -238,13 +238,13 @@ async function evaluateRecoveredOracle({
 async function invokeLlmAttempt({
   evaluatorConfig,
   prompt,
-  budget,
   deps,
   remainingMs,
 }) {
   const chat = deps.chat ?? createDefaultChatClient(evaluatorConfig);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), remainingMs);
+  let raceTimeout;
 
   try {
     const response = await Promise.race([
@@ -255,7 +255,7 @@ async function invokeLlmAttempt({
         signal: controller.signal,
       }),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('recovery_timeout')), remainingMs);
+        raceTimeout = setTimeout(() => reject(new Error('recovery_timeout')), remainingMs);
       }),
     ]);
 
@@ -288,6 +288,7 @@ async function invokeLlmAttempt({
     throw error;
   } finally {
     clearTimeout(timeout);
+    clearTimeout(raceTimeout);
   }
 }
 
@@ -426,7 +427,6 @@ export async function runLlmRecoveryTrial({
       const attempt = await invokeLlmAttempt({
         evaluatorConfig,
         prompt,
-        budget,
         deps,
         remainingMs,
       });

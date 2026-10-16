@@ -49,7 +49,7 @@ and require their own decisions and specifications.
 flowchart LR
     A[JavaScript bundled] --> B[Validate input and extension]
     B --> C[Detect hazards]
-    C -->|valid| D[Apply v1 preset]
+    C -->|valid| D[Apply versioned preset]
     D --> E[javascript-obfuscator]
     E --> F[Validate syntax without executing]
     F -->|valid| G[Compute metadata and hashes]
@@ -116,6 +116,86 @@ as `javascript-obfuscator`. The value comes from the surrounding process:
 This improves predictability, reproduction, and diagnostics. It is not an additional encryption
 layer or proof of resistance against deobfuscation, manual analysis, or LLMs.
 
+## Side-by-side: plain JS, engine only, and js-condom
+
+The same input goes through three paths. Outputs are real but truncated with `…`. Running the
+original and both js-condom outputs with `applyDiscount(100, 'gold')`, `(59.9, 'silver')` and
+`(10, 'x')` returns `80`, `53.91` and `10`. The engine-only output was not executed.
+
+**1. Plain JS** (193 bytes)
+
+```js
+export function applyDiscount(price, customerTier) {
+  const rates = { gold: 0.2, silver: 0.1 };
+  const rate = rates[customerTier] ?? 0;
+  return Math.round(price * (1 - rate) * 100) / 100;
+}
+```
+
+**2. Engine only** — `javascript-obfuscator` 4.1.0 with its default options
+
+```js
+function _0x9980(_0x340480,_0x59e850){const _0x41643f=_0x4164();return _0x9980=function(…){…},_0x9980(…);}
+(function(_0xcd75a,_0x48fecf){…while(!![]){try{…parseInt(_0x38e788(0x193))…}catch(…){…}}}(_0x4164,0xf3380));
+function _0x4164(){const _0xb1569c=['8UcMYgb',…,'round',…];…}
+export function applyDiscount(_0x38f81a,_0x6339dc){const _0x1e4a4c=_0x9980,_0x578c22={'gold':0.2,'silver':0.1},
+_0x3215fb=_0x578c22[_0x6339dc]??0x0;return Math[_0x1e4a4c(0x189)](_0x38f81a*(0x1-_0x3215fb)*0x64)/0x64;}
+```
+
+**3. js-condom** (preset `2.0.0`) — `js-condom protect input.mjs --output out.mjs --report out.json --seed <seed>`
+
+`--seed seed-a` (3,017 bytes, `outputSha256` `56975f25…`):
+
+```js
+function _0x259b(_0x16920e,_0xf394e4){…if(_0x259b['ecWPLn']===undefined){var _0x14ae22=function(_0x498b94){
+const _0x5b34c3='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=';…}…}
+export function applyDiscount(_0x51596c,_0x11676c){const _0x2a2dbf=_0x259b,_0x19b549={};
+_0x19b549[_0x2a2dbf(0x1e4)]=0.2,_0x19b549[_0x2a2dbf(0x1e0)]=0.1;const _0x4e8284=_0x19b549,
+_0x5d63ae=_0x4e8284[_0x11676c]??-0x52*0x11+0x63*-0x25+-0x185*-0xd;return Math[_0x2a2dbf(0x1e9)](…)/(…);}
+function _0x331b(){const _0x55cdc7=['n1r3BhHVEG','mtq0t1HxvMjY',…,'CM91BMq',…];…}
+```
+
+Running `seed-a` again produces the same bytes and hash. `--seed seed-b` produces a different
+layout (3,097 bytes, `outputSha256` `88f53d63…`) with the same behavior:
+
+```js
+export function applyDiscount(_0x3dc390,_0x4e4c07){const _0x2804cc=_0x376e,_0x5887e2={};
+_0x5887e2[_0x2804cc(0xca)]=0.2,_0x5887e2[_0x2804cc(0xcc)]=0.1;…return Math[_0x2804cc(0xcf)](…)/(…);}
+function _0x56eb(){const _0x2cdb16=['mJC0ntG0nw1XrfvQAG','CM91BMq',…];…}
+```
+
+The `--report` file records the audit trail:
+
+```json
+{ "toolVersion": "0.0.0", "engineVersion": "4.1.0", "presetVersion": "2.0.0", "seedUsed": "seed-a",
+  "inputSha256": "8cbccdaf…", "outputSha256": "56975f25…", "configSha256": "39ecd0bd…" }
+```
+
+Unsafe input is rejected before obfuscation. For example,
+`export const f = (s) => eval(s);` fails with `UNSUPPORTED_SYNTAX` and `{ "hazard": "direct-eval" }`.
+
+**How to read it**
+
+- All three paths share the same engine. Paths 2 and 3 both rename identifiers, move strings
+  into a shuffled table, and add a rotation bootstrap.
+- Preset `2.0.0` goes further than the engine defaults:
+  - every string goes into the table, instead of about 80% by default;
+  - the table is base64-encoded, so `round` no longer appears in clear text;
+  - object keys (`gold`, `silver`) are moved into the table;
+  - integer literals (`1`, `100`) become arithmetic expressions.
+- js-condom also adds controls around the engine:
+  - a frozen, versioned preset;
+  - byte-identical output for the same seed;
+  - hazard rejection before protection;
+  - SHA-256 audit metadata;
+  - atomic writes that never overwrite existing files.
+- Still visible: the export name `applyDiscount`, the decimal rates `0.2` and `0.1` (engine 4.1.0
+  does not transform non-integer numbers), and the shape of the arithmetic. The base64 table is
+  encoding, not encryption: the decoder ships in the same file. Obfuscation does not hide secrets
+  or business rules.
+- Size cost: 193 → 1,257 bytes with the engine defaults, and 193 → 3,017 bytes with preset
+  `2.0.0`. Most of it is fixed decoder runtime, so the relative cost shrinks for larger files.
+
 ## Output and deobfuscation example
 
 Consider this input code:
@@ -126,8 +206,9 @@ export function greet(name) {
 }
 ```
 
-With the v1 preset and a fixed seed, the output contains hexadecimal names, a string table, and an
-engine-generated decoder. A representative excerpt of the current output is:
+With preset `1.0.0` and a fixed seed, the output contains hexadecimal names, a string table, and an
+engine-generated decoder. Preset `2.0.0` also base64-encodes that table. The steps below still
+apply, because the decoder ships in the same file. A representative excerpt of the current output is:
 
 ```js
 function _0x5e01(_0x2a5f9d, _0x308dc7) {
@@ -138,7 +219,7 @@ function _0x5e01(_0x2a5f9d, _0x308dc7) {
   }, _0x5e01(_0x2a5f9d, _0x308dc7);
 }
 
-// tabela e bootstrap omitidos neste exemplo
+// string table and bootstrap omitted in this example
 
 export function greet(_0x49708f) {
   var _0x2969d5 = _0x5e01;
@@ -149,11 +230,11 @@ export function greet(_0x49708f) {
 This format makes casual reading harder, but it does not permanently hide the logic. A typical
 deobfuscation process can:
 
-1. analisar o AST e localizar a tabela de strings;
-2. executar ou avaliar estaticamente o decodificador;
-3. substituir chamadas como `_0x2969d5(0x1e6)` pelo texto correspondente;
+1. parse the AST and locate the string table;
+2. execute or statically evaluate the decoder;
+3. replace calls such as `_0x2969d5(0x1e6)` with the corresponding text;
 4. rename identifiers and reformat the code;
-5. comparar o resultado com o comportamento do artefato original.
+5. compare the result with the behavior of the original artifact.
 
 After these steps, the essential logic can return to a form close to:
 
@@ -211,7 +292,7 @@ const { code, metadata } = await protect(sourceCode, { seed: 'optional-seed' });
   metadata: {
     toolVersion: string,
     engineVersion: string,   // qualified javascript-obfuscator version
-    presetVersion: string,   // e.g. "1.0.0"
+    presetVersion: string,   // e.g. "2.0.0"
     seedUsed: string,
     inputSha256: string,
     outputSha256: string,
@@ -267,17 +348,24 @@ js-condom protect input.mjs --output out.mjs --report report.json --seed my-seed
 4. **AST-Based Hazard Detection:** Detection of `with`, `eval`, `Function`, and `toString` dependencies operates on parsed Acorn AST nodes rather than naive regex, eliminating false positives on comments and strings.
 5. **No Host Execution:** `protect()` validates the artifact by parsing it. It does not import or execute that code in the build process. Semantic checks of fixtures run in a separate subprocess during tests, not during publication.
 
-## Preset v1
+## Preset v2
 
-The preset is versioned as a single unit (`presetVersion: 1.0.0`). It encapsulates approved
+The preset is versioned as a single unit (`presetVersion: 2.0.0`). It encapsulates approved
 `javascript-obfuscator` options:
 - `compact: true` (minified bundle)
 - `identifierNamesGenerator: 'hexadecimal'` (stable renaming)
 - `stringArray: true` & `stringArrayShuffle: true` (string table extraction with seed)
+- `stringArrayThreshold: 1` (every string goes to the table; the engine default leaves ~20% inline)
+- `stringArrayEncoding: ['base64']` (table entries are not stored as clear text)
+- `transformObjectKeys: true` (object literal keys move into the table)
+- `numbersToExpressions: true` (integer literals become expressions; decimals stay visible)
 - `simplify: true`
 - `controlFlowFlattening: false` & `deadCodeInjection: false` (disabled to preserve runtime performance and stability)
 - `selfDefending: false` (disabled to avoid runtime traps in legitimate environments)
 - `renameGlobals: false` (disabled to preserve cross-module and global compatibility)
+
+Upgrading from preset `1.0.0` changes the output bytes and `configSha256` for the same input and
+seed. Reports carry `presetVersion`, so they show which preset produced an artifact.
 
 Consumers cannot pass arbitrary engine flags. Qualified engine: `javascript-obfuscator@4.1.0` (see `package.json` → `jsCondom`).
 
@@ -305,7 +393,12 @@ Do not ship engine or preset upgrades without completing the checklist.
 - **Supported subset** — exercised by the release fixture matrix (ESM/CJS, async/await, classes,
   closures, generators, optional chaining, private fields, exceptions).
 - **Rejected hazards (when detectable):** `eval`, `with`, `Function` constructor, and
-  `function.prototype.toString` dependencies on function references.
+  `function.prototype.toString` dependencies on function references. Any value reference to
+  `eval` or `Function` is rejected, including aliases, `(0, eval)(...)`,
+  `globalThis.Function` and `Reflect.construct(Function, ...)`; `x instanceof Function` and
+  `Function.prototype.<member>` remain allowed.
+- **Not detected:** code creation reached through runtime values, such as
+  `(() => {}).constructor("...")` or property names built at runtime.
 - **Best-effort detection** — dynamic patterns not visible to static analysis are documented
   limitations, not guarantees.
 - **No browser runtime** — protection runs in Node.js at build time.
@@ -324,10 +417,9 @@ artifacts to external services during protection.
 ## Development
 
 ```bash
-npm run lint    # syntax check (node --check) on core/cli sources
+npm run lint    # ESLint (recommended rules) on all sources and tests
 npm test        # full test suite including offline boundary tests
 npm audit --audit-level=high
 ```
 
 See [docs/release-checklist.md](docs/release-checklist.md) before tagging a release.
-

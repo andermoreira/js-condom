@@ -167,3 +167,28 @@ test('validateConformanceMetadata rejects candidate outside slice coverage', () 
       error instanceof SliceConformanceError && error.code === 'slice_conformance_violation',
   );
 });
+
+test('structural variants keep function-level "use strict" directives effective', () => {
+  const source =
+    'function f() { "use strict"; return this === undefined; } module.exports = { f };';
+  const runDetached = (code) => {
+    const moduleRecord = { exports: {} };
+    new Function('module', code)(moduleRecord);
+    const detached = moduleRecord.exports.f;
+    return detached();
+  };
+
+  for (const protectFn of [protectOssExtension, protectOwnMinimal]) {
+    const variants = new Set();
+    for (let index = 0; index < 40; index += 1) {
+      const { code, metadata } = protectFn({
+        sourceCode: source,
+        canonicalSeed: `strict-${index}`,
+        auxiliaryTransforms: [],
+      });
+      variants.add(metadata.appliedVariants[0]?.variant);
+      assert.equal(runDetached(code), true, code);
+    }
+    assert.ok(variants.has('block-wrap'));
+  }
+});

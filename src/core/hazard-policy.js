@@ -22,6 +22,8 @@ const MODULE_SYNTAX_TYPES = new Set([
   'ExportAllDeclaration',
 ]);
 
+const GLOBAL_OBJECT_NAMES = new Set(['globalThis', 'window', 'self', 'global']);
+
 /**
  * @param {string} sourceCode
  * @param {'module' | 'script'} sourceType
@@ -141,7 +143,111 @@ function isEvalCallee(callee) {
  * @returns {boolean}
  */
 function isFunctionConstructorCallee(callee) {
-  return callee.type === 'Identifier' && callee.name === 'Function';
+  if (callee.type === 'Identifier') {
+    return callee.name === 'Function';
+  }
+
+  // globalThis.Function, window["Function"], self.Function, global.Function
+  if (callee.type !== 'MemberExpression' || callee.object.type !== 'Identifier') {
+    return false;
+  }
+  if (!GLOBAL_OBJECT_NAMES.has(callee.object.name)) {
+    return false;
+  }
+  const { property } = callee;
+  return callee.computed
+    ? property.type === 'Literal' && property.value === 'Function'
+    : property.type === 'Identifier' && property.name === 'Function';
+}
+
+/**
+ * Retorna 'eval' ou 'Function' quando o nó referencia um desses globais, seja
+ * por identificador (`eval`) ou via objeto global (`globalThis["eval"]`).
+ *
+ * @param {import('acorn').Node} node
+ * @param {import('acorn').Node | null} parent
+ * @returns {'eval' | 'Function' | null}
+ */
+function getDynamicCodeReference(node, parent) {
+  if (node.type === 'Identifier') {
+    if (node.name !== 'eval' && node.name !== 'Function') {
+      return null;
+    }
+    return isReferencePosition(node, parent) ? node.name : null;
+  }
+
+  if (
+    node.type === 'MemberExpression' &&
+    node.object.type === 'Identifier' &&
+    GLOBAL_OBJECT_NAMES.has(node.object.name)
+  ) {
+    const { property } = node;
+    const name = node.computed
+      ? property.type === 'Literal' ? property.value : null
+      : property.name;
+    return name === 'eval' || name === 'Function' ? name : null;
+  }
+
+  return null;
+}
+
+/**
+ * Identificador em posição de valor (não é nome de propriedade, chave ou rótulo).
+ *
+ * @param {import('acorn').Node} node
+ * @param {import('acorn').Node | null} parent
+ * @returns {boolean}
+ */
+function isReferencePosition(node, parent) {
+  if (!parent) {
+    return true;
+  }
+  switch (parent.type) {
+    case 'MemberExpression':
+      return parent.object === node || parent.computed;
+    case 'Property':
+      return parent.value === node || parent.computed || parent.shorthand;
+    case 'MethodDefinition':
+    case 'PropertyDefinition':
+      return parent.key !== node || parent.computed;
+    case 'LabeledStatement':
+    case 'BreakStatement':
+    case 'ContinueStatement':
+      return false;
+    default:
+      return true;
+  }
+}
+
+/**
+ * Usos de `Function` que não criam código: `x instanceof Function` e
+ * `Function.prototype.<membro>` (exceto `.constructor`, que é o próprio Function).
+ *
+ * @param {import('acorn').Node} node
+ * @param {import('acorn').Node[]} ancestors - Do mais externo ao pai imediato.
+ * @returns {boolean}
+ */
+function isSafeFunctionReference(node, ancestors) {
+  const parent = ancestors.at(-1);
+  if (parent?.type === 'BinaryExpression' && parent.operator === 'instanceof' && parent.right === node) {
+    return true;
+  }
+
+  if (
+    parent?.type === 'MemberExpression' &&
+    parent.object === node &&
+    !parent.computed &&
+    parent.property.name === 'prototype'
+  ) {
+    const grandparent = ancestors.at(-2);
+    return !(
+      grandparent?.type === 'MemberExpression' &&
+      grandparent.object === parent &&
+      (grandparent.computed || grandparent.property.name === 'constructor')
+    );
+  }
+
+  return false;
 }
 
 /**
@@ -249,7 +355,7 @@ export function analyzeSemanticHazards(sourceCode) {
   const ast = parseJavaScript(sourceCode);
 
   traverse(ast, {
-    enter(node) {
+    enter(node, parent) {
       // 1. Rejeição de WithStatement (quando parseado em modo script)
       if (node.type === 'WithStatement') {
         throw createPublicError(
@@ -286,6 +392,23 @@ export function analyzeSemanticHazards(sourceCode) {
           'SEMANTIC_HAZARD',
           'function text representation dependency is not supported',
           { hazard: 'function-prototype-tostring' },
+        );
+      }
+
+      // 5. Referências indiretas: alias, `(0, eval)(...)`, Reflect.construct(Function, ...)
+      const reference = getDynamicCodeReference(node, parent);
+      if (reference === 'eval') {
+        throw createPublicError(
+          'UNSUPPORTED_SYNTAX',
+          'eval is not supported',
+          { hazard: 'direct-eval' },
+        );
+      }
+      if (reference === 'Function' && !isSafeFunctionReference(node, this.parents())) {
+        throw createPublicError(
+          'SEMANTIC_HAZARD',
+          'Function constructor is not supported',
+          { hazard: 'function-constructor' },
         );
       }
     },

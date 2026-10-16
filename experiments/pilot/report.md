@@ -67,6 +67,12 @@ Generated at: 2026-08-09T17:48:11.501Z
 
 - Valid candidate cells: 44/48
 
+> **Erratum (2026-10-16):** the 44/48 figure counted the 8 valid `unprotected-control` cells in
+> the numerator but not in the denominator. Recounting `run.json` gives **36/48** valid candidate
+> cells: `oss-baseline` has 8 `tool_error` and 2 `semantic_mismatch`, and `oss-extension` has
+> 2 `tool_error`. `deriveProtocolEvidence` was fixed. `run.json` was not regenerated, so its
+> `evidence.semanticCoverage` field still holds the original value.
+
 ## Frozen official manifest
 
 - Experiment ID: official-2026-08-09

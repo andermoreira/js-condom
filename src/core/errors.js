@@ -40,16 +40,16 @@ const BLOCKED_DETAIL_KEYS = new Set([
   'auth',
 ]);
 
+const BLOCKED_DETAIL_KEYS_NORMALIZED = new Set(
+  [...BLOCKED_DETAIL_KEYS].map((key) => key.toLowerCase()),
+);
+
 /**
  * Verifica se a chave de detalhe é considerada potencialmente sensível.
  *
  * @param {string} key - Nome da chave a ser verificada.
  * @returns {boolean} True se a chave deve ser descartada.
  */
-const BLOCKED_DETAIL_KEYS_NORMALIZED = new Set(
-  [...BLOCKED_DETAIL_KEYS].map((key) => key.toLowerCase()),
-);
-
 function isBlockedDetailKey(key) {
   const normalized = key.toLowerCase();
   return (

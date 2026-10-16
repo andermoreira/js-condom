@@ -242,3 +242,17 @@ test('removes sandbox workdir even when execution fails', async () => {
 
   assert.equal(sandboxResult.workDirRemoved, true);
 });
+
+test('unknown behavior oracle is inconclusive, not a semantic mismatch', async () => {
+  const result = await runSubjectSemanticCase({
+    manifest: buildManifest(),
+    experimentId: 'semantic-test',
+    caseEntry: { ...CLOSURE_CASE, expectedBehaviorId: 'behavior-does-not-exist' },
+    subjectId: 'oss-baseline',
+    seed: 'pilot-seed-1',
+    sourceCode: CLOSURE_CASE.source,
+  });
+
+  assert.equal(result.status, 'inconclusive');
+  assert.equal(result.semantic.equivalent, false);
+});

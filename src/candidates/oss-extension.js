@@ -106,12 +106,16 @@ function createSeededRandom(projectedSeed) {
 }
 
 function applyBlockWrap(body) {
+  // Directive prologues ("use strict") only take effect at the top of the function body.
+  const directiveCount = body.body.findIndex((statement) => !statement.directive);
+  const splitAt = directiveCount === -1 ? body.body.length : directiveCount;
   return {
     type: 'BlockStatement',
     body: [
+      ...body.body.slice(0, splitAt),
       {
         type: 'BlockStatement',
-        body: body.body,
+        body: body.body.slice(splitAt),
       },
     ],
   };

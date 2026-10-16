@@ -4,8 +4,7 @@ import {
   createBlindingRegistry,
   createSeededRng,
 } from '../recovery/blinding.js';
-
-const CANDIDATE_SUBJECTS = ['oss-baseline', 'oss-extension', 'own-minimal'];
+import { CANDIDATE_SUBJECTS } from '../analysis/matrix-shared.js';
 
 export function buildOfficialBlindingArtifacts({ manifest, cases, protectCandidate }) {
   const artifacts = [];

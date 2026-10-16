@@ -390,7 +390,12 @@ export async function runSubjectSemanticCase({
   }
 
   const oraclePassed = sandboxResult.oracle.passed === true;
-  const status = oraclePassed ? 'valid' : 'semantic_mismatch';
+  // passed === null means the oracle could not judge (e.g. unknown behavior id), not a divergence.
+  const status = oraclePassed
+    ? 'valid'
+    : sandboxResult.oracle.passed === null
+      ? 'inconclusive'
+      : 'semantic_mismatch';
 
   return {
     experimentId,
@@ -490,7 +495,7 @@ export async function compareSemanticSubjects({
         'candidate diverged from control oracle',
         ...candidate.semantic.diagnostics,
       ],
-      status: candidate.status === 'semantic_mismatch' ? 'semantic_mismatch' : candidate.status,
+      status: candidate.status,
     },
   };
 }

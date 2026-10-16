@@ -1,13 +1,14 @@
 /**
  * @fileoverview Configuração canônica e preset versionado para o js-condom.
  *
- * Define o PRESET_V1 (versão 1.0.0), a resolução de opções de proteção,
+ * Define o PRESET_V2 (versão 1.0.0), a resolução de opções de proteção,
  * a extração de versões de dependências e a serialização canônica e ordenada
  * de metadados para cálculo de hashes criptográficos estáveis.
  */
 
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPublicError } from './errors.js';
@@ -19,16 +20,16 @@ const PACKAGE_JSON_PATH = join(__dirname, '../../package.json');
 function readProjectPackageJson() {
   return JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf8'));
 }
-const ENGINE_PACKAGE_JSON_PATH = join(
-  __dirname,
-  '../../node_modules/javascript-obfuscator/package.json',
+// Resolve pelo algoritmo do Node para funcionar também com dependências hoisted.
+const ENGINE_PACKAGE_JSON_PATH = createRequire(import.meta.url).resolve(
+  'javascript-obfuscator/package.json',
 );
 
 /**
  * Versão do preset de proteção ativo no js-condom.
  * Qualquer alteração de flags no preset requer incremento de versão e requalificação.
  */
-export const PRESET_VERSION = '1.0.0';
+export const PRESET_VERSION = '2.0.0';
 
 /**
  * Conjunto de chaves de opções públicas permitidas na API protect().
@@ -36,7 +37,7 @@ export const PRESET_VERSION = '1.0.0';
 export const ALLOWED_OPTION_KEYS = Object.freeze(new Set(['seed']));
 
 /**
- * Definição canônica do PRESET_V1.
+ * Definição canônica do PRESET_V2.
  *
  * Racional das escolhas de configuração:
  * - compact: true -> Minifica o código gerado.
@@ -48,20 +49,28 @@ export const ALLOWED_OPTION_KEYS = Object.freeze(new Set(['seed']));
  * - simplify: true -> Simplifica expressões primitivas sem quebra semântica.
  * - stringArray: true -> Extrai strings literais para tabela centralizada.
  * - stringArrayShuffle: true -> Embaralha a tabela de strings com base na seed fornecida.
+ * - stringArrayThreshold: 1 -> Move todas as strings para a tabela (o padrão da engine, 0.8, deixa ~20% em claro).
+ * - stringArrayEncoding: ['base64'] -> Codifica a tabela; o texto não aparece literal no artefato.
+ * - transformObjectKeys: true -> Tira chaves de objetos literais do código, levando-as para a tabela.
+ * - numbersToExpressions: true -> Troca literais inteiros por expressões (decimais seguem visíveis na engine 4.1.0).
  * - target: 'browser' -> Produz código compatível com browser e runtimes Node.js modernos.
  * - unicodeEscapeSequence: false -> Mantém legibilidade básica dos caracteres sem inflar o tamanho do bundle.
  */
-export const PRESET_V1 = Object.freeze({
+export const PRESET_V2 = Object.freeze({
   compact: true,
   controlFlowFlattening: false,
   deadCodeInjection: false,
   identifierNamesGenerator: 'hexadecimal',
+  numbersToExpressions: true,
   renameGlobals: false,
   selfDefending: false,
   simplify: true,
   stringArray: true,
+  stringArrayEncoding: Object.freeze(['base64']),
   stringArrayShuffle: true,
+  stringArrayThreshold: 1,
   target: 'browser',
+  transformObjectKeys: true,
   unicodeEscapeSequence: false,
 });
 
@@ -75,7 +84,7 @@ export const PRESET_V1 = Object.freeze({
  * @property {string} seedUsed - Seed efetivamente utilizada no processo.
  * @property {string} presetVersion - Versão do preset aplicado (ex: "1.0.0").
  * @property {string} engineVersion - Versão qualificada do javascript-obfuscator.
- * @property {Readonly<typeof PRESET_V1>} preset - Configuração de flags repassadas à engine.
+ * @property {Readonly<typeof PRESET_V2>} preset - Configuração de flags repassadas à engine.
  */
 
 /**
@@ -236,7 +245,7 @@ export function resolveProtectionConfig(options = {}) {
     seedUsed,
     presetVersion: PRESET_VERSION,
     engineVersion: getEngineVersion(),
-    preset: PRESET_V1,
+    preset: PRESET_V2,
   };
 }
 

@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   ALLOWED_OPTION_KEYS,
   PRESET_VERSION,
-  PRESET_V1,
+  PRESET_V2,
   buildConfigRecord,
   getEngineVersion,
   resolveProtectionConfig,
@@ -50,7 +50,7 @@ test('resolves explicit seed and keeps configSha256 stable for the same configur
   assert.equal(second.seedUsed, 'my-seed');
   assert.equal(first.presetVersion, PRESET_VERSION);
   assert.equal(first.engineVersion, '4.1.0');
-  assert.deepEqual(first.preset, PRESET_V1);
+  assert.deepEqual(first.preset, PRESET_V2);
 
   const firstRecord = buildConfigRecord(first);
   const secondRecord = buildConfigRecord(second);

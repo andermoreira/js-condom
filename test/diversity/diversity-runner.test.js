@@ -218,3 +218,12 @@ test('runDiversityForGroup rejects cross-scope comparisons', () => {
     (error) => error instanceof DiversityRunnerError && error.code === 'cross_scope_comparison',
   );
 });
+
+test('normalization distinguishes regex literals from null', () => {
+  const tokens = normalizeTokens('const a = /x/; const b = null;');
+  assert.ok(tokens.includes('Regex'));
+  assert.ok(tokens.includes('Null'));
+
+  const ast = normalizeAst('const a = /x/;');
+  assert.equal(ast.body[0].declarations[0].init.valueType, 'Regex');
+});

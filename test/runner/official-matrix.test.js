@@ -350,6 +350,21 @@ test('deriveConclusion returns exactly one AC17 option per scenario', () => {
     manifest,
   );
   assert.equal(simpler.id, 'evidencia-favorece-alternativa-mais-simples');
+
+  const noPairs = deriveConclusion(
+    {
+      caseResults: [{ subjectId: 'own-minimal', status: 'valid' }],
+      recovery: { trials: [] },
+      supportedCaseCount: 1,
+    },
+    {
+      candidates: {
+        'own-minimal': { pairedReductionInterval: { lower: null, upper: null, mean: null } },
+      },
+    },
+    manifest,
+  );
+  assert.equal(noPairs.id, 'evidencia-insuficiente');
 });
 
 test('runOfficialMatrix produces self-contained results and derived report', async () => {

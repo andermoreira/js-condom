@@ -27,7 +27,8 @@ export function extractExportedBindings(sourceCode) {
   const bindings = [];
 
   for (const node of program.body) {
-    if (node.type !== 'ExportNamedDeclaration') {
+    // `export { x } from 'mod'` has no local binding and is kept verbatim by stripModuleExports.
+    if (node.type !== 'ExportNamedDeclaration' || node.source) {
       continue;
     }
 
@@ -121,7 +122,7 @@ export function stripModuleExports(sourceCode) {
   let cursor = 0;
 
   for (const node of program.body) {
-    if (node.type === 'ExportNamedDeclaration') {
+    if (node.type === 'ExportNamedDeclaration' && !node.source) {
       parts.push(sourceCode.slice(cursor, node.start));
 
       if (node.declaration) {

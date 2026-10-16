@@ -456,3 +456,55 @@ test('human-rubric evaluator calibrates on control source via oracle', async () 
   assert.equal(trial.oracle.passed, true);
   assert.equal(trial.oracle.mode, 'human-rubric');
 });
+
+test('webcrack recovery trial does not leave pending timers after completion', async () => {
+  const countTimers = () =>
+    process.getActiveResourcesInfo().filter((name) => name === 'Timeout').length;
+  const manifest = buildManifest();
+  const caseEntry = buildCase();
+  const registry = createBlindingRegistry({
+    artifacts: [
+      {
+        caseId: caseEntry.caseId,
+        subjectId: 'unprotected-control',
+        seed: null,
+        sourceCode: CLOSURE_SOURCE,
+        recoveryTaskIds: ['task-recover-exports'],
+      },
+    ],
+    rng: createSeededRng(1),
+  });
+  const before = countTimers();
+
+  await runRecoveryTrial({
+    manifest,
+    caseEntry,
+    taskId: 'task-recover-exports',
+    evaluatorId: 'eval-webcrack',
+    blindArtifactId: registry.entries[0].blindArtifactId,
+    sourceCode: CLOSURE_SOURCE,
+    trial: 1,
+    deps: { webcrack: mockWebcrack },
+  });
+
+  assert.equal(countTimers(), before);
+});
+
+// Pending owner decision: fixing the id breaks reproduction of the frozen official manifest
+// blinding hashes (see specs/js-condom-evidence-correction.md, Evidence anchors).
+test.todo('blind artifact ids do not encode the artifact position', () => {
+  const registry = createBlindingRegistry({
+    artifacts: ['unprotected-control', 'oss-baseline', 'own-minimal'].map((subjectId) => ({
+      caseId: 'case-1',
+      subjectId,
+      seed: null,
+      sourceCode: 'export const x = 1;',
+    })),
+    rng: createSeededRng(1),
+  });
+
+  for (const entry of registry.entries) {
+    assert.match(entry.blindArtifactId, /^artifact-[0-9a-f]{8}$/);
+  }
+  assert.equal(new Set(registry.entries.map((entry) => entry.blindArtifactId)).size, 3);
+});

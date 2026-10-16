@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -174,4 +174,30 @@ test('cli writes optional report atomically', async () => {
     assert.equal(report.seedUsed, 'report-seed');
     assert.match(report.outputSha256, /^[0-9a-f]{64}$/);
   });
+});
+
+test('cli runs when invoked through a symlink, as npm installs bin entries', async () => {
+  await withTempDir(async (workDir) => {
+    const linkPath = join(workDir, 'js-condom');
+    await symlink(CLI_PATH, linkPath);
+    const result = spawnSync(process.execPath, [linkPath], { encoding: 'utf8' });
+
+    assert.equal(result.status, 1);
+    assert.equal(parseStderr(result.stderr).code, 'INVALID_INPUT');
+  });
+});
+
+test('cli prints usage to stdout and exits 0 for --help', () => {
+  for (const flag of ['--help', '-h']) {
+    const result = runCli([flag]);
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /^usage: js-condom protect/);
+    assert.equal(result.stderr, '');
+  }
+});
+
+test('cli still fails with usage error when called without arguments', () => {
+  const result = runCli([]);
+  assert.equal(result.status, 1);
+  assert.equal(parseStderr(result.stderr).code, 'INVALID_INPUT');
 });

@@ -118,3 +118,13 @@ describe('esm-export-preserver', () => {
     assert.equal(semantic.status, 'valid');
   });
 });
+
+describe('re-exports with a module source', () => {
+  it('keeps them untouched', () => {
+    const source = "export { readFile } from 'node:fs'; export const a = 1;";
+    const { code } = protectWithExportPreservation(source, (input) => ({ code: input }));
+
+    assert.match(code, /export \{ readFile \} from 'node:fs';/);
+    assert.match(code, /export \{ a \};/);
+  });
+});

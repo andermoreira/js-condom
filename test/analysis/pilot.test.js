@@ -378,10 +378,18 @@ test('deriveProtocolEvidence aggregates OQ1/OQ5/OQ6 metrics', async () => {
     manifest,
     caseResults: [
       {
+        subjectId: 'unprotected-control',
+        status: 'valid',
+      },
+      {
         subjectId: 'oss-baseline',
         status: 'valid',
         performance: { buildDurationMs: 100 },
         execution: { durationMs: 50 },
+      },
+      {
+        subjectId: 'own-minimal',
+        status: 'tool_error',
       },
     ],
     recovery: {
@@ -423,6 +431,7 @@ test('deriveProtocolEvidence aggregates OQ1/OQ5/OQ6 metrics', async () => {
   assert.equal(evidence.oq1.candidateCompletionRates['own-minimal'], 0);
   assert.equal(evidence.oq5.observed.buildDurationMs.p95, 100);
   assert.equal(evidence.oq6.intervalMethod, 'bootstrap-percentile');
+  assert.deepEqual(evidence.semanticCoverage, { validCandidateCells: 1, totalCandidateCells: 2 });
 });
 
 test('runPilot produces self-contained run output and frozen manifest with mocks', async () => {
@@ -564,4 +573,15 @@ test('generatePilotReport includes limitations and owner decisions', async () =>
   assert.match(report, /test limitation/);
   assert.match(report, /10 pp/);
   assert.match(report, /official-2026-08-09/);
+});
+
+test('buildPilotManifest freezes a per-category minimum map from the numeric OQ2 policy', async () => {
+  const bundle = buildMinimalBundle();
+  const manifest = await buildPilotManifest({ repositoryCommit: 'test-commit', bundle });
+  const categories = [...new Set(bundle.pilot.cases.map((entry) => entry.category))];
+
+  assert.deepEqual(
+    manifest.sampling.minimumCasesPerCategory,
+    Object.fromEntries(categories.map((category) => [category, 1])),
+  );
 });

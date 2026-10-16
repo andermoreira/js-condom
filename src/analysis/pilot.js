@@ -4,24 +4,31 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
-import { protect as protectOssBaseline, getToolRecord as getBaselineToolRecord } from '../candidates/oss-baseline.js';
+import { getToolRecord as getBaselineToolRecord } from '../candidates/oss-baseline.js';
 import { protect as protectOssExtension } from '../candidates/oss-extension.js';
 import { protect as protectOwnMinimal } from '../candidates/own-minimal.js';
 import { getOq2Decision, hashSource, loadAndValidateCorpus } from '../corpus/corpus.js';
-import { attachDiversityToCaseResults } from '../diversity/diversity-runner.js';
 import { TRANSFORMATION_SLICE, validateConformanceMetadata } from '../protocol/transformation-slice.js';
 import { validateManifest } from '../protocol/validate-manifest.js';
 import { createSeededRng } from '../recovery/blinding.js';
 import { loadEvaluatorConfig } from '../recovery/llm-evaluator.js';
 import { calibrateRecoveryPairs, runRecoveryHarness, runRecoveryTrial } from '../recovery/recovery-runner.js';
-import {
-  compareSemanticSubjects,
-  createEmbeddedArtifact,
-  runSubjectSemanticCase,
-  verifyEmbeddedArtifact,
-} from '../runner/semantic-runner.js';
-import { protectWithExportPreservation } from '../runner/esm-export-preserver.js';
+import { createEmbeddedArtifact } from '../runner/semantic-runner.js';
 import { computeOfficialBlindingHashes } from '../runner/official-blinding.js';
+import {
+  BASELINE_CONFIG,
+  PilotError,
+  assertSelfContained,
+  buildMatrix,
+  buildPerformanceSamples,
+  completionRate,
+  enrichRecoveryTrials,
+  formatNumber,
+  percentile,
+  protectCandidate,
+} from './matrix-shared.js';
+
+export { BASELINE_CONFIG, PilotError } from './matrix-shared.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '../..');
@@ -35,21 +42,6 @@ export const IMPLEMENTED_EVALUATORS = new Set([
 export const DEFAULT_PILOT_SEEDS = ['pilot-seed-1', 'pilot-seed-2'];
 export const DETERMINISM_PROBE_REPETITIONS = 3;
 
-export const BASELINE_CONFIG = {
-  compact: true,
-  controlFlowFlattening: false,
-  deadCodeInjection: false,
-  identifierNamesGenerator: 'hexadecimal',
-  renameGlobals: false,
-  selfDefending: false,
-  simplify: true,
-  stringArray: true,
-  stringArrayShuffle: true,
-  target: 'browser',
-  unicodeEscapeSequence: false,
-};
-
-const CANDIDATE_SUBJECTS = ['oss-baseline', 'oss-extension', 'own-minimal'];
 const FROZEN_PROTOCOL_PATHS = [
   '/decisionRule',
   '/sampling',
@@ -59,15 +51,6 @@ const FROZEN_PROTOCOL_PATHS = [
   '/diversityMetrics',
   '/blinding',
 ];
-
-export class PilotError extends Error {
-  constructor(code, message, details = {}) {
-    super(message);
-    this.name = 'PilotError';
-    this.code = code;
-    this.details = details;
-  }
-}
 
 function readRepositoryCommit(fallback = 'unknown') {
   try {
@@ -117,6 +100,14 @@ export function captureEnvironment() {
     memoryBytes: os.totalmem(),
     nodeVersion: process.version,
   };
+}
+
+/**
+ * OQ2 stores the per-category minimum as a single number; the manifest schema expects a map.
+ */
+function perCategoryMinimums(cases, minimum) {
+  const categories = [...new Set(cases.map((entry) => entry.category))];
+  return Object.fromEntries(categories.map((category) => [category, minimum]));
 }
 
 function mapCorpusEntries(cases, partition) {
@@ -268,7 +259,7 @@ export async function buildPilotManifest({
     },
     sampling: {
       minimumTotalCases: pilotPolicy.minimumTotalCases,
-      minimumCasesPerCategory: { ...pilotPolicy.minimumCasesPerCategory },
+      minimumCasesPerCategory: perCategoryMinimums(bundle.pilot.cases, pilotPolicy.minimumCasesPerCategory),
       seedsPerCase: seeds.length,
       repetitionsByEvaluator,
       aggregation: 'paired-by-case-seed-task-evaluator',
@@ -379,169 +370,6 @@ export function verifyEnvironmentCompatibility(manifest, environment) {
   }
 }
 
-function protectCandidate(subjectId, sourceCode, canonicalSeed) {
-  const startedAt = Date.now();
-
-  const runProtection = (protectionInput) => {
-    if (subjectId === 'oss-baseline') {
-      return protectOssBaseline({
-        sourceCode: protectionInput,
-        canonicalSeed,
-        config: BASELINE_CONFIG,
-      });
-    }
-    if (subjectId === 'oss-extension') {
-      return protectOssExtension({
-        sourceCode: protectionInput,
-        canonicalSeed,
-        auxiliaryTransforms: ['rename-identifiers'],
-      });
-    }
-    if (subjectId === 'own-minimal') {
-      return protectOwnMinimal({
-        sourceCode: protectionInput,
-        canonicalSeed,
-        auxiliaryTransforms: [],
-      });
-    }
-    throw new PilotError('invalid_subject', `unsupported candidate subject: ${subjectId}`);
-  };
-
-  const result = protectWithExportPreservation(sourceCode, runProtection);
-
-  return {
-    ...result,
-    buildDurationMs: Date.now() - startedAt,
-  };
-}
-
-function cellKey(caseId, subjectId, seed) {
-  return `${caseId}:${subjectId}:${seed ?? 'null'}`;
-}
-
-async function buildPilotMatrix({
-  manifest,
-  cases,
-  experimentId,
-  deps,
-}) {
-  const cells = [];
-  const protectedSources = new Map();
-  const performanceByKey = new Map();
-
-  for (const caseEntry of cases.filter((entry) => entry.supported !== false)) {
-    const controlSource = caseEntry.source;
-    protectedSources.set(cellKey(caseEntry.caseId, 'unprotected-control', null), controlSource);
-
-    cells.push({
-      caseId: caseEntry.caseId,
-      subjectId: 'unprotected-control',
-      seed: null,
-      sourceCode: controlSource,
-      inputBytes: Buffer.byteLength(controlSource, 'utf8'),
-      outputBytes: Buffer.byteLength(controlSource, 'utf8'),
-      buildDurationMs: 0,
-    });
-
-    for (const subjectId of CANDIDATE_SUBJECTS) {
-      for (const seed of manifest.seeds) {
-        const protectedResult = deps.protectCandidate(subjectId, caseEntry.source, seed);
-        const key = cellKey(caseEntry.caseId, subjectId, seed);
-        protectedSources.set(key, protectedResult.code);
-        performanceByKey.set(key, {
-          buildDurationMs: protectedResult.buildDurationMs,
-          inputBytes: Buffer.byteLength(caseEntry.source, 'utf8'),
-          outputBytes: Buffer.byteLength(protectedResult.code, 'utf8'),
-        });
-
-        cells.push({
-          caseId: caseEntry.caseId,
-          subjectId,
-          seed,
-          sourceCode: protectedResult.code,
-          configArtifact: createEmbeddedArtifact(
-            JSON.stringify(protectedResult.metadata ?? {}, null, 2),
-            'application/json',
-          ),
-          inputBytes: Buffer.byteLength(caseEntry.source, 'utf8'),
-          outputBytes: Buffer.byteLength(protectedResult.code, 'utf8'),
-          buildDurationMs: protectedResult.buildDurationMs,
-        });
-      }
-    }
-  }
-
-  const caseResults = [];
-
-  for (const cell of cells) {
-    const caseEntry = cases.find((entry) => entry.caseId === cell.caseId);
-    if (!caseEntry) {
-      continue;
-    }
-
-    if (cell.subjectId === 'unprotected-control') {
-      const controlResult = await runSubjectSemanticCase({
-        manifest,
-        experimentId,
-        caseEntry,
-        subjectId: cell.subjectId,
-        seed: cell.seed,
-        sourceCode: cell.sourceCode,
-        artifactKey: 'control',
-      });
-      const perf = performanceByKey.get(cellKey(cell.caseId, cell.subjectId, cell.seed)) ?? {
-        buildDurationMs: 0,
-        inputBytes: cell.inputBytes,
-        outputBytes: cell.outputBytes,
-      };
-      caseResults.push({
-        ...controlResult,
-        performance: perf,
-      });
-      continue;
-    }
-
-    const comparison = await compareSemanticSubjects({
-      manifest,
-      experimentId,
-      caseEntry,
-      subjectId: cell.subjectId,
-      seed: cell.seed,
-      controlSource: caseEntry.source,
-      candidateSource: cell.sourceCode,
-    });
-
-    const perf = performanceByKey.get(cellKey(cell.caseId, cell.subjectId, cell.seed)) ?? {
-      buildDurationMs: cell.buildDurationMs,
-      inputBytes: cell.inputBytes,
-      outputBytes: cell.outputBytes,
-    };
-
-    const candidateResult = {
-      ...comparison.candidate,
-      performance: perf,
-      comparison: comparison.comparison,
-    };
-
-    if (cell.configArtifact) {
-      candidateResult.artifacts = {
-        ...candidateResult.artifacts,
-        config: cell.configArtifact,
-      };
-    }
-
-    caseResults.push(candidateResult);
-  }
-
-  const withDiversity = attachDiversityToCaseResults({
-    manifest,
-    caseResults,
-    getSource: (caseId, subjectId, seed) => protectedSources.get(cellKey(caseId, subjectId, seed)),
-  });
-
-  return { cells, caseResults: withDiversity, protectedSources };
-}
-
 export async function classifyEvaluatorDeterminism({
   manifest,
   cases,
@@ -550,8 +378,8 @@ export async function classifyEvaluatorDeterminism({
   deps = {},
 }) {
   const resolvedDeps = {
-    runRecoveryTrial: deps.runRecoveryTrial ?? runRecoveryTrial,
     ...deps,
+    runRecoveryTrial: deps.runRecoveryTrial ?? runRecoveryTrial,
   };
 
   const pairs = new Map();
@@ -614,26 +442,6 @@ export async function classifyEvaluatorDeterminism({
   return classifications;
 }
 
-function percentile(values, p) {
-  if (values.length === 0) {
-    return 0;
-  }
-  const sorted = [...values].sort((left, right) => left - right);
-  const index = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
-  return sorted[Math.max(0, index)];
-}
-
-function completionRate(trials) {
-  const eligible = trials.filter((trial) =>
-    ['completed', 'failed', 'timeout'].includes(trial.outcome),
-  );
-  if (eligible.length === 0) {
-    return null;
-  }
-  const completed = eligible.filter((trial) => trial.outcome === 'completed').length;
-  return (completed / eligible.length) * 100;
-}
-
 export function deriveProtocolEvidence({
   manifest,
   caseResults,
@@ -670,8 +478,9 @@ export function deriveProtocolEvidence({
     'own-minimal': baselineRate === null || ownRate === null ? null : baselineRate - ownRate,
   };
 
-  const semanticValid = caseResults.filter((entry) => entry.status === 'valid').length;
-  const semanticTotal = caseResults.filter((entry) => entry.subjectId !== 'unprotected-control').length;
+  const candidateResults = caseResults.filter((entry) => entry.subjectId !== 'unprotected-control');
+  const semanticValid = candidateResults.filter((entry) => entry.status === 'valid').length;
+  const semanticTotal = candidateResults.length;
 
   const variableEvaluators = determinism.filter((entry) => entry.determinism === 'variable');
   const implementedDeterminism = determinism.filter((entry) => entry.implemented);
@@ -824,6 +633,9 @@ export function freezeOfficialManifest(pilotManifest, ownerDecisions, evidence, 
 
   if (!bundle) {
     const loaded = loadAndValidateCorpus();
+    if (!loaded.valid) {
+      throw new PilotError('corpus_invalid', 'corpus validation failed', { errors: loaded.errors });
+    }
     bundle = loaded.bundle;
   }
 
@@ -857,7 +669,10 @@ export function freezeOfficialManifest(pilotManifest, ownerDecisions, evidence, 
     evaluators,
     sampling: {
       minimumTotalCases: officialPolicy.minimumTotalCases,
-      minimumCasesPerCategory: { ...officialPolicy.minimumCasesPerCategory },
+      minimumCasesPerCategory: perCategoryMinimums(
+        bundle.official.cases,
+        officialPolicy.minimumCasesPerCategory,
+      ),
       seedsPerCase: ownerDecisions.oq6.seeds.length,
       repetitionsByEvaluator: { ...ownerDecisions.oq6.repetitionsByEvaluator },
       aggregation: 'paired-by-case-seed-task-evaluator',
@@ -1050,76 +865,6 @@ export function generatePilotReport(run) {
   return lines.join('\n');
 }
 
-function formatNumber(value) {
-  if (value === null || value === undefined) {
-    return 'n/a';
-  }
-  if (typeof value === 'number') {
-    return Number.isInteger(value) ? String(value) : value.toFixed(2);
-  }
-  return String(value);
-}
-
-function assertSelfContained(run) {
-  const serialized = JSON.stringify(run);
-  if (/"path"\s*:|"fileRef"\s*:/.test(serialized)) {
-    throw new PilotError('run_not_self_contained', 'run.json must not reference external file paths');
-  }
-
-  const artifacts = [];
-  const visit = (value) => {
-    if (!value || typeof value !== 'object') {
-      return;
-    }
-    if (value.sha256 && value.content && value.encoding) {
-      artifacts.push(value);
-    }
-    if (Array.isArray(value)) {
-      value.forEach(visit);
-      return;
-    }
-    Object.values(value).forEach(visit);
-  };
-  visit(run);
-
-  for (const artifact of artifacts) {
-    if (!verifyEmbeddedArtifact(artifact)) {
-      throw new PilotError('artifact_hash_mismatch', 'embedded artifact hash does not match content');
-    }
-  }
-}
-
-function buildPerformanceSamples(caseResults, recoveryTrials) {
-  return {
-    buildDurationMs: caseResults
-      .map((entry) => entry.performance?.buildDurationMs ?? 0)
-      .filter((value) => value > 0),
-    runtimeDurationMs: caseResults
-      .map((entry) => entry.execution?.durationMs ?? 0)
-      .filter((value) => value > 0),
-    recoveryWallClockMs: recoveryTrials
-      .map((trial) => trial.effort?.wallClockMs ?? 0)
-      .filter((value) => value > 0),
-  };
-}
-
-function enrichRecoveryTrials(recoveryResult) {
-  const cellByBlind = new Map();
-  for (const entry of recoveryResult.blinding.registry.entries) {
-    cellByBlind.set(entry.blindArtifactId, entry);
-  }
-
-  return recoveryResult.trials.map((trial) => {
-    const cell = cellByBlind.get(trial.blindArtifactId);
-    return {
-      ...trial,
-      caseId: cell?.caseId,
-      subjectId: cell?.subjectId,
-      seed: cell?.seed ?? null,
-    };
-  });
-}
-
 function buildOwnerDecisionsFromEvidence(evidence, determinism, manifest) {
   const determinismByEvaluator = {};
   const repetitionsByEvaluator = {};
@@ -1220,7 +965,7 @@ export async function runPilot({
     now: deps.now,
   };
 
-  const { cells, caseResults } = await buildPilotMatrix({
+  const { cells, caseResults } = await buildMatrix({
     manifest,
     cases: pilotCases,
     experimentId,
@@ -1325,7 +1070,7 @@ export async function runPilot({
     frozenManifest,
   };
 
-  assertSelfContained(run);
+  assertSelfContained(run, { code: 'run_not_self_contained', fileName: 'run.json' });
 
   const report = generatePilotReport(run);
 

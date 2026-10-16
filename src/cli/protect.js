@@ -7,15 +7,18 @@
  * e serialização padronizada de erros para stderr em formato JSON.
  */
 
+import { realpathSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { protectFile } from '../core/file-protection.js';
 import {
   JsCondomError,
   createPublicError,
   serializePublicError,
 } from '../core/errors.js';
+
+const USAGE =
+  'usage: js-condom protect <input> --output <path> [--report <path>] [--seed <seed>]';
 
 /**
  * Esquema de opções suportadas pela CLI.
@@ -35,11 +38,10 @@ const CLI_OPTIONS = {
  */
 
 /**
- * Realiza o parsing e a validação estrita dos argumentos da CLI.
+ * Converte erros do parseArgs em erro público INVALID_INPUT.
  *
- * @param {string[]} argv - Array de argumentos do processo (geralmente process.argv).
- * @returns {ParsedProtectCliArgs}
- * @throws {import('../core/errors.js').JsCondomError} Em caso de comando desconhecido ou flag ausente.
+ * @param {unknown} error
+ * @returns {never}
  */
 function rethrowCliParseError(error) {
   if (error instanceof JsCondomError) {
@@ -62,6 +64,13 @@ function rethrowCliParseError(error) {
   throw error;
 }
 
+/**
+ * Realiza o parsing e a validação estrita dos argumentos da CLI.
+ *
+ * @param {string[]} argv - Array de argumentos do processo (geralmente process.argv).
+ * @returns {ParsedProtectCliArgs}
+ * @throws {import('../core/errors.js').JsCondomError} Em caso de comando desconhecido ou flag ausente.
+ */
 export function parseProtectCliArgs(argv) {
   try {
     return parseProtectCliArgsUnsafe(argv);
@@ -73,11 +82,8 @@ export function parseProtectCliArgs(argv) {
 function parseProtectCliArgsUnsafe(argv) {
   const args = argv.slice(2);
 
-  if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
-    throw createPublicError(
-      'INVALID_INPUT',
-      'usage: js-condom protect <input> --output <path> [--report <path>] [--seed <seed>]',
-    );
+  if (args.length === 0) {
+    throw createPublicError('INVALID_INPUT', USAGE);
   }
 
   if (args[0] !== 'protect') {
@@ -130,6 +136,12 @@ function parseProtectCliArgsUnsafe(argv) {
  * @returns {Promise<number>} Código de saída do processo (0 para sucesso, 1 para erro).
  */
 export async function runProtectCli(argv) {
+  const firstArg = argv[2];
+  if (firstArg === '--help' || firstArg === '-h') {
+    console.log(USAGE);
+    return 0;
+  }
+
   try {
     const parsed = parseProtectCliArgs(argv);
     await protectFile(parsed);
@@ -143,12 +155,24 @@ export async function runProtectCli(argv) {
   }
 }
 
-// Detecção de execução como módulo principal para execução automática
-const isMainModule =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+/**
+ * Detecta execução como módulo principal. Compara caminhos reais porque o npm
+ * instala entradas `bin` como symlinks.
+ *
+ * @returns {boolean}
+ */
+function isMainModule() {
+  if (process.argv[1] === undefined) {
+    return false;
+  }
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
 
-if (isMainModule) {
+if (isMainModule()) {
   const exitCode = await runProtectCli(process.argv);
   process.exit(exitCode);
 }

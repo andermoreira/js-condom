@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
-import { PRESET_V1, PRESET_VERSION } from '../../src/core/config.js';
+import { PRESET_V2, PRESET_VERSION } from '../../src/core/config.js';
 import { JsCondomError, serializePublicError } from '../../src/core/errors.js';
 import { sha256Hex } from '../../src/core/metadata.js';
 import { protect } from '../../src/core/protect.js';
@@ -71,6 +71,36 @@ test('rejects semantic hazards with stable public error codes', async () => {
       source: 'export const run = new Function("return 1");',
       code: 'SEMANTIC_HAZARD',
       hazard: 'function-constructor',
+    },
+    {
+      source: 'export const run = globalThis.Function("return 1");',
+      code: 'SEMANTIC_HAZARD',
+      hazard: 'function-constructor',
+    },
+    {
+      source: 'export const run = new window["Function"]("return 1");',
+      code: 'SEMANTIC_HAZARD',
+      hazard: 'function-constructor',
+    },
+    {
+      source: 'export const run = Reflect.construct(Function, ["return 1"]);',
+      code: 'SEMANTIC_HAZARD',
+      hazard: 'function-constructor',
+    },
+    {
+      source: 'const F = Function; export const run = F("return 1");',
+      code: 'SEMANTIC_HAZARD',
+      hazard: 'function-constructor',
+    },
+    {
+      source: 'export const run = (0, eval)("1");',
+      code: 'UNSUPPORTED_SYNTAX',
+      hazard: 'direct-eval',
+    },
+    {
+      source: 'const e = globalThis.eval; export const run = e("1");',
+      code: 'UNSUPPORTED_SYNTAX',
+      hazard: 'direct-eval',
     },
   ];
 
@@ -180,7 +210,7 @@ test('does not invoke network during protection', async () => {
 
 test('forwards only validated preset options to the engine', async () => {
   const obfuscatorModule = await import('javascript-obfuscator');
-  const obfuscateMock = mock.method(obfuscatorModule.default, 'obfuscate', (source, options) => ({
+  const obfuscateMock = mock.method(obfuscatorModule.default, 'obfuscate', (source) => ({
     getObfuscatedCode: () => source,
   }));
 
@@ -190,10 +220,34 @@ test('forwards only validated preset options to the engine', async () => {
 
     const [, options] = obfuscateMock.mock.calls[0].arguments;
     assert.deepEqual(options, {
-      ...PRESET_V1,
+      ...PRESET_V2,
       seed: 'engine-options-seed',
     });
   } finally {
     obfuscateMock.mock.restore();
+  }
+});
+
+test('allows non-dynamic uses of Function and eval names', async () => {
+  const sources = [
+    'export const isFn = (value) => value instanceof Function;',
+    'export const call = Function.prototype.call;',
+    'export const obj = { Function: 1, eval: 2 }; export const v = obj.Function + obj.eval;',
+  ];
+
+  for (const source of sources) {
+    await protect(source, { seed: FIXED_SEED });
+  }
+});
+
+test('preset hides object keys and every string literal from the protected output', async () => {
+  const source =
+    'export function rate(tier) { const rates = { gold: 20, silver: 10 }; return rates[tier] ?? 0; }\n' +
+    'export const LABEL = "discount-engine";\n' +
+    'export const KINDS = ["alpha", "beta", "gamma", "delta", "epsilon"];';
+  const { code } = await protect(source, { seed: FIXED_SEED });
+
+  for (const text of ['gold', 'silver', 'discount-engine', 'alpha', 'epsilon']) {
+    assert.equal(code.includes(text), false, `"${text}" should not appear in clear text`);
   }
 });

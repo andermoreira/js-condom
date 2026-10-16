@@ -298,3 +298,35 @@ test('runLlmRecoveryTrial counts repeated attempts within configured budget', as
   assert.equal(trial.effort.toolInvocations, 2);
   assert.equal(trial.effort.promptCount, 2);
 });
+
+test('runLlmRecoveryTrial does not leave pending timers after completion', async () => {
+  const countTimers = () =>
+    process.getActiveResourcesInfo().filter((name) => name === 'Timeout').length;
+  const before = countTimers();
+
+  await runLlmRecoveryTrial({
+    manifest: buildManifest(),
+    caseEntry: {
+      caseId: 'pilot-closures-001',
+      expectedBehaviorId: 'behavior-closure-counter',
+    },
+    task: buildTask(),
+    evaluatorConfig: VALID_CONFIG,
+    blindArtifactId: 'artifact-001',
+    sourceCode: CLOSURE_SOURCE,
+    trial: 1,
+    budget: buildBudget(),
+    deps: {
+      chat: async () => ({
+        message: { content: `\`\`\`javascript\n${CLOSURE_SOURCE}\n\`\`\`` },
+      }),
+      evaluateRecoveredOracle: async () => ({
+        passed: true,
+        mode: 'automated',
+        diagnostics: [],
+      }),
+    },
+  });
+
+  assert.equal(countTimers(), before);
+});

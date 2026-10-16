@@ -32,22 +32,20 @@ function parseSource(sourceCode, parser = acorn) {
   });
 }
 
-function literalPlaceholder(value, raw) {
+function literalPlaceholder(node) {
+  // Acorn marks regex literals on the node; their value is a RegExp (or null when unsupported).
+  if (node.regex) {
+    return 'Regex';
+  }
+  const { value } = node;
   if (value === null) {
     return 'Null';
-  }
-  if (typeof value === 'object' && value?.regex) {
-    return 'Regex';
   }
 
   for (const [kind, placeholder] of LITERAL_TYPE_BY_VALUE) {
     if (typeof value === kind) {
       return placeholder;
     }
-  }
-
-  if (raw?.startsWith('/')) {
-    return 'Regex';
   }
 
   return 'Lit';
@@ -83,7 +81,7 @@ function collectNormalizedTokens(node, tokens) {
       tokens.push(normalizeIdentifierToken());
       return;
     case 'Literal':
-      tokens.push(literalPlaceholder(node.value, node.raw));
+      tokens.push(literalPlaceholder(node));
       return;
     case 'PrivateIdentifier':
       tokens.push('PrivateId');
@@ -121,7 +119,7 @@ function normalizeAstNode(node) {
     case 'Literal': {
       const normalized = {
         type: 'Literal',
-        valueType: literalPlaceholder(node.value, node.raw),
+        valueType: literalPlaceholder(node),
       };
       if (node.regex) {
         normalized.regex = true;

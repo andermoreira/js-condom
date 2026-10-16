@@ -78,6 +78,41 @@ evidência insuficiente, nunca resistência presumida.
 - [Resultados oficiais](../experiments/official/results.json) e [relatório](../experiments/official/report.md)
   — artefatos históricos preservados, agora interpretados pelo ADR 002.
 - [ADR 002](../adr/002-evidencia-e-posicionamento-v1.md) — decisão de posicionamento.
+- [Corpus](../corpus/official-cases.json) — achado da revisão de 2026-10-16: 11 dos 22 casos
+  oficiais têm `sourceHash` idêntico a um caso do piloto. Em todos os pares, `official-<categoria>-001`
+  é igual a `pilot-<categoria>-001`. `validateCorpus` só verifica se os `caseId` são disjuntos, e
+  por isso aceitou `partitionsDisjoint: true`. Como o piloto calibrou o limiar (OQ1), metade da
+  partição oficial não era dado inédito. Isso reforça a classificação `evidencia-insuficiente`
+  desta spec. O corpus histórico não foi alterado. Exigir disjunção por `sourceHash` invalidaria
+  o corpus atual e fica pendente de decisão.
+- [Sampling](../src/analysis/pilot.js) — achado da revisão de 2026-10-16: os manifests do piloto e
+  o oficial congelaram `sampling.minimumCasesPerCategory: {}`. A política OQ2 guarda esse mínimo
+  como número, e o manifest espalhava esse número dentro de um objeto, o que resulta em `{}`. Por
+  isso `verifySampleSize` nunca verificou o mínimo por categoria. `validateCorpus` faz a mesma
+  verificação por outro caminho, e o corpus oficial tem exatamente 2 casos por categoria, então
+  não houve violação. O código passou a gerar o mapa por categoria. Os manifests históricos não
+  foram regenerados.
+- [Diversidade](../src/diversity/similarity.js) — achado da revisão de 2026-10-16: a métrica
+  `tree-edit@1` atribui similaridade 0,99 a dois programas sem relação (uma função `add` e uma
+  classe `Queue`). No alinhamento de arrays, substituir uma subárvore inteira custa 1,
+  independentemente do tamanho dela. Assim, a distância fica perto do número de statements de
+  topo, enquanto o divisor é o tamanho da árvore. Os valores de diversidade AST publicados não
+  discriminam variantes e não devem ser lidos como evidência de polimorfismo. A métrica está
+  congelada no manifest. Corrigi-la exige uma `tree-edit@2` e fica pendente de decisão. Na mesma
+  revisão foi corrigido um defeito menor da normalização: literais regex eram tokenizados como
+  `Null`. Nenhuma das 216 células registradas contém regex, então os números publicados não mudam.
+- [Blinding](../src/recovery/blinding.js) — achado da revisão de 2026-10-16: o `blindArtifactId`
+  gerado com RNG terminava em `-${index}`, a posição na lista de artefatos. Essa lista segue sempre
+  a ordem controle → `oss-baseline` × seeds → `oss-extension` × seeds → `own-minimal` × seeds por
+  caso. Em [blinding-map.json](../experiments/official/blinding-map.json), por exemplo,
+  `artifact-9efa3b21-0` é `unprotected-control` e `-1` a `-3` são `oss-baseline`. Assim, a visão
+  do avaliador (`buildEvaluatorView`) revelava o candidato a qualquer leitor humano, e o AC12 não
+  se sustentava para avaliação humana. Os evaluators executados na matriz oficial (`webcrack` e
+  comparação de AST) são automáticos, e o prompt do LLM usa só o objetivo e o código. Por isso não
+  há indício de viés nos resultados registrados. **Correção pendente de decisão:** remover o
+  sufixo faz os hashes de blinding do manifest oficial congelado deixarem de ser reproduzíveis, e
+  `test/runner/official-blinding.test.js` protege justamente essa reprodução. Enquanto não houver
+  decisão, o teste da correção fica como `todo` em `test/recovery/recovery-runner.test.js`.
 
 ## Acceptance criteria
 

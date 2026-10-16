@@ -308,7 +308,7 @@ function readInput(source) {
 function runCli() {
   const source = process.argv[2];
   if (!source) {
-    console.error('Usage: validate-manifest <manifest.json|-');
+    console.error('Usage: validate-manifest <manifest.json|->');
     process.exit(1);
   }
 

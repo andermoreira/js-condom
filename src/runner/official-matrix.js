@@ -1,13 +1,8 @@
-import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { protect as protectOssBaseline } from '../candidates/oss-baseline.js';
-import { protect as protectOssExtension } from '../candidates/oss-extension.js';
-import { protect as protectOwnMinimal } from '../candidates/own-minimal.js';
 import { hashSource, loadAndValidateCorpus } from '../corpus/corpus.js';
-import { attachDiversityToCaseResults } from '../diversity/diversity-runner.js';
 import { validateManifest } from '../protocol/validate-manifest.js';
 import {
   buildEvaluatorView,
@@ -19,22 +14,27 @@ import {
 import { calibrateRecoveryPairs, runRecoveryHarness, runRecoveryTrial } from '../recovery/recovery-runner.js';
 import { loadEvaluatorConfig, runLlmRecoveryTrial } from '../recovery/llm-evaluator.js';
 import {
-  BASELINE_CONFIG,
   captureEnvironment,
-  PilotError,
   verifyEnvironmentCompatibility,
   verifySampleSize,
   verifySliceConformance,
 } from '../analysis/pilot.js';
 import {
-  protectWithExportPreservation,
-} from './esm-export-preserver.js';
-import {
-  compareSemanticSubjects,
-  createEmbeddedArtifact,
-  runSubjectSemanticCase,
-  verifyEmbeddedArtifact,
-} from './semantic-runner.js';
+  CANDIDATE_SUBJECTS,
+  PilotError,
+  assertSelfContained,
+  buildMatrix,
+  buildPerformanceSamples,
+  cellKey,
+  completionRate,
+  enrichRecoveryTrials,
+  formatNumber,
+  percentile,
+  protectCandidate,
+} from '../analysis/matrix-shared.js';
+import { createEmbeddedArtifact } from './semantic-runner.js';
+
+export { protectCandidate };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '../../');
@@ -47,64 +47,15 @@ export const AC17_CONCLUSIONS = [
   'evidencia-insuficiente',
 ];
 
-const CANDIDATE_SUBJECTS = ['oss-baseline', 'oss-extension', 'own-minimal'];
 const PRIMARY_EVALUATOR_ID = 'eval-webcrack';
 const BOOTSTRAP_SAMPLES = 1000;
-
-function readRepositoryCommit(fallback = 'unknown') {
-  try {
-    return execSync('git rev-parse HEAD', { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
-  } catch {
-    return fallback;
-  }
-}
-
-function cellKey(caseId, subjectId, seed) {
-  return `${caseId}:${subjectId}:${seed ?? 'null'}`;
-}
 
 function trialKey(trial) {
   return `${trial.blindArtifactId}:${trial.taskId}:${trial.evaluatorId}:${trial.trial}`;
 }
 
-export function protectCandidate(subjectId, sourceCode, canonicalSeed) {
-  const startedAt = Date.now();
-
-  const runProtection = (protectionInput) => {
-    if (subjectId === 'oss-baseline') {
-      return protectOssBaseline({
-        sourceCode: protectionInput,
-        canonicalSeed,
-        config: BASELINE_CONFIG,
-      });
-    }
-    if (subjectId === 'oss-extension') {
-      return protectOssExtension({
-        sourceCode: protectionInput,
-        canonicalSeed,
-        auxiliaryTransforms: ['rename-identifiers'],
-      });
-    }
-    if (subjectId === 'own-minimal') {
-      return protectOwnMinimal({
-        sourceCode: protectionInput,
-        canonicalSeed,
-        auxiliaryTransforms: [],
-      });
-    }
-    throw new OfficialMatrixError('invalid_subject', `unsupported candidate subject: ${subjectId}`);
-  };
-
-  const result = protectWithExportPreservation(sourceCode, runProtection);
-
-  return {
-    ...result,
-    buildDurationMs: Date.now() - startedAt,
-  };
-}
-
 export function loadFrozenOfficialManifest(manifestPath) {
-  const absolutePath = manifestPath.startsWith('/') ? manifestPath : join(REPO_ROOT, manifestPath);
+  const absolutePath = isAbsolute(manifestPath) ? manifestPath : join(REPO_ROOT, manifestPath);
   const raw = readFileSync(absolutePath, 'utf8');
   const manifest = JSON.parse(raw);
   const validation = validateManifest(manifest);
@@ -200,26 +151,6 @@ export function verifyMatrixCompleteness(manifest, cells, cases) {
   }
 
   return { expectedCount: expected.length, actualCount: cells.length };
-}
-
-function percentile(values, p) {
-  if (values.length === 0) {
-    return 0;
-  }
-  const sorted = [...values].sort((left, right) => left - right);
-  const index = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
-  return sorted[Math.max(0, index)];
-}
-
-function completionRate(trials) {
-  const eligible = trials.filter((trial) =>
-    ['completed', 'failed', 'timeout'].includes(trial.outcome),
-  );
-  if (eligible.length === 0) {
-    return null;
-  }
-  const completed = eligible.filter((trial) => trial.outcome === 'completed').length;
-  return (completed / eligible.length) * 100;
 }
 
 function isResistanceTrial(trial) {
@@ -431,11 +362,15 @@ export function deriveConclusion(results, aggregates, manifest) {
   const ownMinimal = aggregates.candidates['own-minimal'];
   const ownIntervalLower = ownMinimal?.pairedReductionInterval?.lower;
 
-  if (
-    ownIntervalLower !== null &&
-    ownIntervalLower !== undefined &&
-    ownIntervalLower >= threshold
-  ) {
+  // Sem pares baseline×candidato não há evidência para nenhuma das duas decisões.
+  if (ownIntervalLower === null || ownIntervalLower === undefined) {
+    return {
+      id: 'evidencia-insuficiente',
+      rationale: ['no paired baseline/own-minimal trials available to compute the reduction interval'],
+    };
+  }
+
+  if (ownIntervalLower >= threshold) {
     return {
       id: 'evidencia-justifica-engine-propria',
       rationale: [
@@ -447,20 +382,10 @@ export function deriveConclusion(results, aggregates, manifest) {
   return {
     id: 'evidencia-favorece-alternativa-mais-simples',
     rationale: [
-      `own-minimal interval lower bound ${ownIntervalLower ?? 'n/a'} pp does not meet frozen threshold ${threshold} pp`,
+      `own-minimal interval lower bound ${ownIntervalLower} pp does not meet frozen threshold ${threshold} pp`,
       'evidence does not justify a proprietary engine over the frozen OSS baseline path',
     ],
   };
-}
-
-function formatNumber(value) {
-  if (value === null || value === undefined) {
-    return 'n/a';
-  }
-  if (typeof value === 'number') {
-    return Number.isInteger(value) ? String(value) : value.toFixed(2);
-  }
-  return String(value);
 }
 
 export function generateOfficialReport(results) {
@@ -582,185 +507,6 @@ export function generateOfficialReport(results) {
   return lines.join('\n');
 }
 
-function assertSelfContained(results) {
-  const serialized = JSON.stringify(results);
-  if (/"path"\s*:|"fileRef"\s*:/.test(serialized)) {
-    throw new OfficialMatrixError('results_not_self_contained', 'results.json must not reference external file paths');
-  }
-
-  const artifacts = [];
-  const visit = (value) => {
-    if (!value || typeof value !== 'object') {
-      return;
-    }
-    if (value.sha256 && value.content && value.encoding) {
-      artifacts.push(value);
-    }
-    if (Array.isArray(value)) {
-      value.forEach(visit);
-      return;
-    }
-    Object.values(value).forEach(visit);
-  };
-  visit(results);
-
-  for (const artifact of artifacts) {
-    if (!verifyEmbeddedArtifact(artifact)) {
-      throw new OfficialMatrixError('artifact_hash_mismatch', 'embedded artifact hash does not match content');
-    }
-  }
-}
-
-function enrichRecoveryTrials(recoveryResult) {
-  const cellByBlind = new Map();
-  for (const entry of recoveryResult.blinding.registry.entries) {
-    cellByBlind.set(entry.blindArtifactId, entry);
-  }
-
-  return recoveryResult.trials.map((trial) => {
-    const cell = cellByBlind.get(trial.blindArtifactId);
-    return {
-      ...trial,
-      trialId: trialKey(trial),
-      caseId: cell?.caseId,
-      subjectId: cell?.subjectId,
-      seed: cell?.seed ?? null,
-    };
-  });
-}
-
-function buildPerformanceSamples(caseResults, recoveryTrials) {
-  return {
-    buildDurationMs: caseResults
-      .map((entry) => entry.performance?.buildDurationMs ?? 0)
-      .filter((value) => value > 0),
-    runtimeDurationMs: caseResults
-      .map((entry) => entry.execution?.durationMs ?? 0)
-      .filter((value) => value > 0),
-    recoveryWallClockMs: recoveryTrials
-      .map((trial) => trial.effort?.wallClockMs ?? 0)
-      .filter((value) => value > 0),
-  };
-}
-
-async function buildOfficialMatrix({ manifest, cases, experimentId, deps }) {
-  const cells = [];
-  const protectedSources = new Map();
-  const performanceByKey = new Map();
-
-  for (const caseEntry of cases.filter((entry) => entry.supported !== false)) {
-    const controlSource = caseEntry.source;
-    protectedSources.set(cellKey(caseEntry.caseId, 'unprotected-control', null), controlSource);
-
-    cells.push({
-      caseId: caseEntry.caseId,
-      subjectId: 'unprotected-control',
-      seed: null,
-      sourceCode: controlSource,
-      inputBytes: Buffer.byteLength(controlSource, 'utf8'),
-      outputBytes: Buffer.byteLength(controlSource, 'utf8'),
-      buildDurationMs: 0,
-    });
-
-    for (const subjectId of CANDIDATE_SUBJECTS) {
-      for (const seed of manifest.seeds) {
-        const protectedResult = deps.protectCandidate(subjectId, caseEntry.source, seed);
-        const key = cellKey(caseEntry.caseId, subjectId, seed);
-        protectedSources.set(key, protectedResult.code);
-        performanceByKey.set(key, {
-          buildDurationMs: protectedResult.buildDurationMs,
-          inputBytes: Buffer.byteLength(caseEntry.source, 'utf8'),
-          outputBytes: Buffer.byteLength(protectedResult.code, 'utf8'),
-        });
-
-        cells.push({
-          caseId: caseEntry.caseId,
-          subjectId,
-          seed,
-          sourceCode: protectedResult.code,
-          configArtifact: createEmbeddedArtifact(
-            JSON.stringify(protectedResult.metadata ?? {}, null, 2),
-            'application/json',
-          ),
-          inputBytes: Buffer.byteLength(caseEntry.source, 'utf8'),
-          outputBytes: Buffer.byteLength(protectedResult.code, 'utf8'),
-          buildDurationMs: protectedResult.buildDurationMs,
-        });
-      }
-    }
-  }
-
-  const caseResults = [];
-
-  for (const cell of cells) {
-    const caseEntry = cases.find((entry) => entry.caseId === cell.caseId);
-    if (!caseEntry) {
-      continue;
-    }
-
-    if (cell.subjectId === 'unprotected-control') {
-      const controlResult = await runSubjectSemanticCase({
-        manifest,
-        experimentId,
-        caseEntry,
-        subjectId: cell.subjectId,
-        seed: cell.seed,
-        sourceCode: cell.sourceCode,
-        artifactKey: 'control',
-      });
-      const perf = performanceByKey.get(cellKey(cell.caseId, cell.subjectId, cell.seed)) ?? {
-        buildDurationMs: 0,
-        inputBytes: cell.inputBytes,
-        outputBytes: cell.outputBytes,
-      };
-      caseResults.push({
-        ...controlResult,
-        performance: perf,
-      });
-      continue;
-    }
-
-    const comparison = await compareSemanticSubjects({
-      manifest,
-      experimentId,
-      caseEntry,
-      subjectId: cell.subjectId,
-      seed: cell.seed,
-      controlSource: caseEntry.source,
-      candidateSource: cell.sourceCode,
-    });
-
-    const perf = performanceByKey.get(cellKey(cell.caseId, cell.subjectId, cell.seed)) ?? {
-      buildDurationMs: cell.buildDurationMs,
-      inputBytes: cell.inputBytes,
-      outputBytes: cell.outputBytes,
-    };
-
-    const candidateResult = {
-      ...comparison.candidate,
-      performance: perf,
-      comparison: comparison.comparison,
-    };
-
-    if (cell.configArtifact) {
-      candidateResult.artifacts = {
-        ...candidateResult.artifacts,
-        config: cell.configArtifact,
-      };
-    }
-
-    caseResults.push(candidateResult);
-  }
-
-  const withDiversity = attachDiversityToCaseResults({
-    manifest,
-    caseResults,
-    getSource: (caseId, subjectId, seed) => protectedSources.get(cellKey(caseId, subjectId, seed)),
-  });
-
-  return { cells, caseResults: withDiversity, protectedSources };
-}
-
 function buildBaselineJustification(manifest) {
   const obfuscator = manifest.tools?.find((tool) => tool.name === 'javascript-obfuscator');
   return [
@@ -823,6 +569,10 @@ async function evaluateAntiLlmDimension({
       }
     }
 
+    if (trials.length === 0) {
+      return summaryUnavailable('no blinded artifacts available for LLM trials');
+    }
+
     const runtimeUnavailable = trials.every(
       (trial) =>
         trial.outcome === 'inconclusive' &&
@@ -843,7 +593,7 @@ async function evaluateAntiLlmDimension({
   }
 }
 
-function buildLimitations(results, manifest) {
+function buildLimitations(results) {
   const limitations = [
     'Six hazard cases (eval, with, function-tostring) are excluded from protection by reject-before-protection policy.',
   ];
@@ -932,7 +682,7 @@ export async function runOfficialMatrix({
     now: deps.now,
   };
 
-  const { cells, caseResults } = await buildOfficialMatrix({
+  const { cells, caseResults } = await buildMatrix({
     manifest,
     cases,
     experimentId,
@@ -985,7 +735,10 @@ export async function runOfficialMatrix({
 
   const revealedMapping = revealMapping(recoveryResult.blinding.registry);
 
-  const recoveryTrials = enrichRecoveryTrials(recoveryResult);
+  const recoveryTrials = enrichRecoveryTrials(recoveryResult).map((trial) => ({
+    ...trial,
+    trialId: trialKey(trial),
+  }));
   const performanceSamples = buildPerformanceSamples(caseResults, recoveryTrials);
 
   const semanticValid = caseResults.filter(
@@ -1049,7 +802,7 @@ export async function runOfficialMatrix({
   results.aggregates = computeResistanceAggregates(results, manifest);
   results.conclusion = deriveConclusion(results, results.aggregates, manifest);
   results.baselineJustification = buildBaselineJustification(manifest);
-  results.limitations = buildLimitations(results, manifest);
+  results.limitations = buildLimitations(results);
 
   if (!AC17_CONCLUSIONS.includes(results.conclusion.id)) {
     throw new OfficialMatrixError('invalid_conclusion', 'conclusion must be one of AC17 options', {
@@ -1057,7 +810,7 @@ export async function runOfficialMatrix({
     });
   }
 
-  assertSelfContained(results);
+  assertSelfContained(results, { code: 'results_not_self_contained', fileName: 'results.json' });
 
   const report = generateOfficialReport(results);
 

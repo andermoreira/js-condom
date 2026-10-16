@@ -130,6 +130,7 @@ async function runWebcrackRecoveryAttempt({
   let toolInvocations = 0;
 
   try {
+    let raceTimeout;
     const result = await Promise.race([
       deps.webcrack(sourceCode, {
         deobfuscate: false,
@@ -137,9 +138,9 @@ async function runWebcrackRecoveryAttempt({
         unminify: true,
       }),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('recovery_timeout')), remainingMs);
+        raceTimeout = setTimeout(() => reject(new Error('recovery_timeout')), remainingMs);
       }),
-    ]);
+    ]).finally(() => clearTimeout(raceTimeout));
 
     toolInvocations += 1;
     const recoveredCode = result.code;
